@@ -44,7 +44,15 @@ const {<name1>, <name2>} = require('./utils')
 ##### ES Modules
 
 - package.json add "type":"module"
+- package.json modify  "scripts": {
+    "start": "node server.js",
+    "dev":"nodemon server.js",
+    "dev_script": "npx nodemon server.js"
 
+}
+
+npm start
+npm run dev
 
 ```js
 
@@ -75,6 +83,8 @@ postController.getPostsLength() or postController.getPosts()
 
 #### Node Modules
 
+##### Internal Node modules
+
 ###### http (express, koa, fastify)
 
 
@@ -83,9 +93,16 @@ import http from 'http'
 const PORT = 5000;
 
 const server = http.createServer((req,res)=>{
+    // res.setHeader('Content-Type', 'text/html');
+    // res.setHeader('Content-Type', 'text/plain');
+    // res.statusCode = 404;
+    res.writeHead(500, {'Content-Type', 'application/json'})
     res.write('Hello World!');
-    res.end();
+    //res.end('End'); // dont have responsibility to end or send header type or other stuff if using express
+    // res.end('<h1>End</h1>'); 
+    res.end(JSON.stringify({"message":"Server Error"}))
 })
+
 
 
 server.listen(PORT, ()=>{
@@ -94,6 +111,91 @@ server.listen(PORT, ()=>{
 
 ```
 
+###### req object 
+- req.url
+- req.method 
+
+
+```js
+const server = http.createServer((req,res)=>{
+
+    try{
+        if(req.method === 'GET'){
+            if(req.url === '/'){
+                res.writeHead(200, {'Content-Type', 'text/html'})
+                res.end('<h1>Homepage</h1>')
+            } else if(req.url === '/about'){
+                res.writeHead(200, {'Content-Type', 'text/html'})
+                res.end('<h1>About</h1>')
+            }else{
+                res.writeHead(404, {'Content-Type', 'text/html'})
+                res.end('<h1>Not Found</h1>')
+            }
+        }else{
+            throw new Error('Method not allowed')
+        }
+    }catch(error){
+        res.writeHead(500, {'Content-Type', 'text/plain'})
+        res.end('Server Error')
+    }
+    
+});
+
+```
+###### Loading files
+- create a folder name public "index.html" and "about.html"
+
+```js
+import fs from 'fs/prmoises'
+import url from 'url'
+import path from 'path'
+
+const __filename = url.fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename)
+
+let filePath = path.join(__dirname, 'public', 'index.html')
+
+const data = await fs.readFile(filePath);
+res.setHeader('Content-Type', 'text/html')
+res.write(data)
+res.end()
+
+```
+if you are using common js import then you have some variables 
+__filename, __dirname
+
+##### External Node modules / npm modules
+
+###### nodemon
+
+npm i -D nodemon // installs as dev dependencies
+- instead nodemon can use node built in functionality
+node --watch server.js
+
+
+##### gitignore file
+- create a .gitignore file and add 
+node_modules
+.env
+so that it is not pushed to github.
+
+
+##### env file
+
+- earlier we used to use dotenv npm package
+require('dotenv').config() // import 'dotenv/config'
+console.log(process.env)
+- create .env file add it to .gitignore
+PORT = 8080
+--env-file =.env
+nodemon --env-file =.env server.js
+
+process.env.PORT
+
+
+
+
+##### postman
 
 ## Express Crash Course
 
