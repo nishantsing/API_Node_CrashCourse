@@ -866,12 +866,13 @@ await favYoutubeVideosObj.save()
 
 isValidObjectId(<id>)
 const document = await FavYoutubeVideosModel.findById(<id>)
-return c.json(document.toObject(), 200)
+return c.json(document.toObject(), 200) // .toObject not required in case of express(it takes care internally)
 
 
 FavYoutubeVideosModel.findByIdAndUpdate(<id>, <data>, {new: true})
 return c.json(document?.toObject(), 200)
 
+FavYoutubeVideosModel.findByIdAndDelete(<id>)
 
 ```
 
