@@ -89,6 +89,8 @@ postController.getPostsLength() or postController.getPosts()
 [Vanilla Node REST API | No Framework by Travvesry](https://youtu.be/_1xa8Bsho6A)
 
 ```js
+
+// node
 import http from 'http'
 const PORT = 5000;
 
@@ -109,6 +111,25 @@ server.listen(PORT, ()=>{
     console.log(`Server running on port ${PORT}`)
 })
 
+
+//bun
+
+import { serve } from 'bun'
+
+serve({
+    fetch(request){
+        const url = new URL(request.url);
+        if(url.pathname === '/'){
+            return new Response('Hello World', {status: 200})
+        }else if(url.pathname === '/ice-tea'){
+            return new Response('Ice tea is a good option', {status: 200})
+        }else{
+            return new Response('404 Not found', {status: 404})
+        }
+    },
+    port:3000,
+    hostname:'127.0.0.1'
+})
 ```
 
 ###### req object 
@@ -955,3 +976,6 @@ return streamText(c, async(stream)=>{
 
 - cloudflare and vercel have there AI so can try streaming on that.
 
+## Heroku Deployment
+
+## Swagger API Documentation
