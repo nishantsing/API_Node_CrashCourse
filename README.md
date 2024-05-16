@@ -24,6 +24,14 @@ console.log(process)
 
 - setInterval, setTimeout, fetch they are not part of js, they are part of web API in the browser but also available in node js through global object.
 
+## REST API
+
+- app.get('/api/v1/posts') - get all the posts
+- app.post('/api/v1/posts') - create a new post
+- app.get('/api/v1/posts/:id') - get a single post
+- app.patch('/api/v1/posts/:id') - update post
+- app.delete('/api/v1/posts/:id') - delete post
+
 
 ### Commonjs Require
 
@@ -260,6 +268,16 @@ const server = createServer((req, res) => {
 ```
 
 ###### postman
+
+- dark mode(settings > Themes > Dark)
+- create Collection (Post Manager)
+- create new request(Get All Posts) and save to collection
+- setting up global variable - 2 ways either set Environment as dev and there set the variable or click on eye and set variable
+URL http://localhost:5000/api/v1
+{{URL}}/posts
+- and do the same for all the routes
+body - raw -json
+
 
 
 ##### fs module
@@ -584,6 +602,8 @@ app.use('/api/posts', posts);
 const express = require('express')
 const router = express.Router();
 
+const {getAllPosts, createPost, getPost, updatePost, deletePost}= require('../controllers/postsController'); // getting controller method
+
 router.get('/', (req,res)=>{
     // req.query
     const limit = parseInt(req.query.limit)
@@ -598,12 +618,18 @@ router.get('/', (req,res)=>{
 
 })
 
+// route chaining
+// router.route('/').get(getAllPosts).post(createPost);
+// router.route('/:id').get(getPost).patch(updatePost).delete(deletePost);
+
 export default router
 module.exports = router;
 
 ```
 
 #### put vs patch
+
+
 
 #### middleware in express
 - fns that have access to req and res object, used for logging, authentication
@@ -807,11 +833,17 @@ app.set("view engine", "ejs")
 
 #### mongodb - ORM mongoose, sql - ORM sequelize
 
+- [Mongodb Atlas](https://www.mongodb.com/docs/atlas/getting-started/)
+- Login - Create Cluster - Database Access(Add User) - Network Access(0.0.0.0/0) - Connect(connect your appplication - URI)
+- Collection - Database(Store) - Collection(Products)
+
+
 - npm i mongoose
-- create a new folder db and create file favYoutubeModel.js
+- create a new folder models and create file favYoutubeModel.js / Posts.js/ postModel.js
+- create a new folder db for connection
 
 ```js
-// db/favYoutubeModel
+// models/favYoutubeModel
 import {Schema, model} from "mongoose";
 
 export interface IFavYoutubeVideosSchema {
@@ -822,7 +854,7 @@ export interface IFavYoutubeVideosSchema {
     youtuberName: string; 
 }
 
-const FavYoutubeVideoSchema = new Schema<IFavYoutubeVideosSchema>({
+const FavYoutubeVideoSchema = new Schema<IFavYoutubeVideosSchema>({ //PostSchema = new Schema({title: String, watched: Boolean})
     title: {
         type: String,
         required: true
@@ -848,7 +880,7 @@ const FavYoutubeVideoSchema = new Schema<IFavYoutubeVideosSchema>({
 })
 
 
-const FavYoutubeVideosModel = model('fav-youtube-videos',FavYoutubeVideoSchema)
+const FavYoutubeVideosModel = model('fav-youtube-videos',FavYoutubeVideoSchema)// model('Post', PostSchema)
 
 // when something is run on the edge you don't know whether this is the first time the calling of the schema or the schema is already made and we want to grab it.
 
@@ -860,9 +892,12 @@ export default FavYoutubeVideosModel
 import mongoose from 'mongoose'
 
 export default async function dbConnect(){
-    await mongoose.connect(String(process.env.MONGODB_URI))
+    // use try catch
+    await mongoose.connect(String(process.env.MONGODB_URI)) // In URI take care os user pass and move to .env and change default databasename
     console.log("MongoDB Connected Successfully...")
 }
+
+// mongoose.connect().then(()=>console.log()).catch((err)=> )
 
 // server
 import dbConnect from './db/connect'
@@ -885,6 +920,8 @@ dbConnect()
 const favYoutubeVideosObj = new FavYoutubeVideosModel(formData)
 await favYoutubeVideosObj.save()
 
+// Post.create(req.body)
+
 isValidObjectId(<id>)
 const document = await FavYoutubeVideosModel.findById(<id>)
 return c.json(document.toObject(), 200) // .toObject not required in case of express(it takes care internally)
@@ -894,6 +931,28 @@ FavYoutubeVideosModel.findByIdAndUpdate(<id>, <data>, {new: true})
 return c.json(document?.toObject(), 200)
 
 FavYoutubeVideosModel.findByIdAndDelete(<id>)
+
+```
+
+- if mongodb not connected then we don't want to start the server
+```js
+// db/connect
+const dbConnect = (URI)=>[
+    return mongoose.connect(URI) // returns a promise
+]
+
+// server
+
+const start = async()=>{
+    try{
+        await dbConnect()
+        app.listen(PORT, console.log())
+    }catch(err){
+        console.log(err)
+    }
+}
+
+start()
 
 ```
 
