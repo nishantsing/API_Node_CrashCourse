@@ -627,10 +627,6 @@ module.exports = router;
 
 ```
 
-#### put vs patch
-
-
-
 #### middleware in express
 - fns that have access to req and res object, used for logging, authentication
 - create middleware folder and create new file logger.js
@@ -835,6 +831,8 @@ app.set("view engine", "ejs")
 
 - [Mongodb Atlas](https://www.mongodb.com/docs/atlas/getting-started/)
 - Login - Create Cluster - Database Access(Add User) - Network Access(0.0.0.0/0) - Connect(connect your appplication - URI)
+mongodb+srv://<username>:<password>@xarvis.dxmnjif.mongodb.net/<databasename>?retryWrites=true&w=majority&appName=Xarvis
+
 - Collection - Database(Store) - Collection(Products)
 
 
@@ -881,7 +879,7 @@ const FavYoutubeVideoSchema = new Schema<IFavYoutubeVideosSchema>({ //PostSchema
 
 
 const FavYoutubeVideosModel = model('fav-youtube-videos',FavYoutubeVideoSchema)// model('Post', PostSchema)
-
+// model(<collectionName in singular>, <Schema>)
 // when something is run on the edge you don't know whether this is the first time the calling of the schema or the schema is already made and we want to grab it.
 
 export default FavYoutubeVideosModel
@@ -1034,6 +1032,395 @@ return streamText(c, async(stream)=>{
 })
 
 - cloudflare and vercel have there AI so can try streaming on that.
+
+## Task Management Simple API
+
+- public if static pages with minimal interaction
+- views if template engine is used.
+
+
+- app.get('/api/v1/tasks') - get all the tasks
+- app.post('/api/v1/tasks') - create a new task
+- app.get('/api/v1/tasks/:id') - get a single task
+- app.patch('/api/v1/tasks/:id') - update task
+- app.delete('/api/v1/tasks/:id') - delete task
+
+
+- set basic routes and controllers and test them using postman
+- then setup db connection and test connection
+
+- only the properties mentioned in schema are set in database rest are ignored
+- empty objects can be added in the collection so we need to apply some validations
+
+[Mongoose Validation](https://mongoosejs.com/docs/validation.html)
+
+```js
+// Schema validators
+name: {
+        type: String,
+        required:[true, 'must provide a name'],
+        trim:true,
+        maxlength:[20,'name can not be more than 20 characters']
+    }
+
+```
+
+- how to make try and catch block generic as we are going to use them in all controller functon
+- how to show more precise error
+
+- queries are not promise, its just for convinence.
+[Mongoose Queries](https://mongoosejs.com/docs/queries.html)
+
+- Task.find({})
+- Task.create({})
+- Task.findOne({_id:}) - always check whethere the task with the id exists
+- findOneAndUpdate({_id:}, {}) - gets oldOne and doesn't run validator
+- update options findOneAndUpdate({_id:}, req.body, {new:true, runValidators: true}) 
+- Task.findOneAndDelete({_id:}) - always check whethere the task with the id exists
+
+- To use static file
+app.use(express.static('./public'))
+
+
+#### Making API better
+
+##### put vs patch
+- put try to overwrite with the passed object
+- update options findOneAndUpdate({_id:}, req.body, {new:true, runValidators: true, overwrite: true})
+
+- patch trying to update the part of the object
+- update options findOneAndUpdate({_id:}, req.body, {new:true, runValidators: true}) 
+
+##### Different Response style
+- res.status(200).json({tasks})
+- res.status(200).json({tasks, amount:tasks.length})
+- res.status(200).json({success:true, data:{tasks, nbHits:tasks.length}})
+- res.status(200).json({status:'success', data:{tasks, nbHits:tasks.length}})
+
+- stay consistent
+
+
+##### Middlewares
+###### Route Not Found
+- setting custom 404 page.
+
+```js
+// middlewares/notFound
+
+const notFound = (req,res)=>{
+    res.status(404).send('Route does not exist')
+}
+
+module.exports = notFound
+
+// server
+
+const notFound = require("./middlewares/notFound.js");
+
+
+app.use(notFound);
+
+```
+
+###### Async Wrappers for try and catch
+
+```js
+// middlewares/async
+const asyncWrapper = (fn)=>{
+    return async(req, res, next)=>{
+        try{
+            await fn(req, res, next)
+        }catch(err){
+            next(err) // handled by built in express handler but we can make our custom error handler
+        }
+    }
+}
+
+module.exports = asyncWrapper
+
+// controllers/ taskController.js
+const asyncWrapper = require('../middleware/async')
+
+const getAllTasks = asyncWrapper(async (req, res) => {
+    // try {
+        const tasks = await Task.find({});
+        res.status(200).json({ tasks });
+    // // } catch (err) {
+    //     res.status(500).json({ msg: err });
+    // }
+    // res.send("all tasks");
+})
+
+```
+###### Catching Errors
+
+```js
+// middlewares/errorHandler
+const errorHandler = (err, req, res, next)=>{
+    return res.status(500).json({msg: err})
+}
+
+module.exports = errorHandler
+
+// server
+
+const errorHandler = require("./middlewares/errorHandler.js");
+app.use(errorHandler);
+
+```
+
+
+
+###### 404 Custom Errors
+
+```js
+
+// errors/customError.js
+
+class CustomError extends Error {
+    constructor(message, statusCode) {
+        super(message); // invokes constructor of parent class
+        this.statusCode = statusCode;
+    }
+}
+
+const createCustomError = (msg, statusCode) => {
+    return new CustomAPIError(msg, statusCode);
+};
+
+module.exports = { createCustomError, CustomError };
+
+
+// controllers/ taskController.js
+
+const {createCustomError} = require('../errors/customError')
+const getTask = asyncWrapper(async (req, res, next) => {
+   
+        const { id: taskID } = req.params;
+        const task = await Task.findOne({ _id: taskID });
+        if (!task) {
+            return next(createCustomError(`No task with id: ${taskID}`, 404));
+        }
+        res.status(200).json({ task });
+});
+
+// middlewares/errorHandler
+const { CustomError } = require("../errors/customError");
+
+const errorHandler = (err, req, res, next) => {
+    if (err instanceof CustomError) {
+        return res.status(err.statusCode).json({ msg: err.message });
+    }
+    return res
+        .status(500)
+        .json({ msg: `Something went wrong, please try again` });
+};
+
+module.exports = errorHandler;
+```
+
+## Checklist to create node API
+- Express SetUp
+- Connect to database
+- Controllers and Routes Setup
+- Postman Setup
+- express-async-errors
+
+```js
+// server
+require('express-async-errors')
+
+// controller/productController
+const getAllProducts = async(req, res)=>{ // no need for try catch
+    throw new Error('testing async errors')
+}
+```
+- Schema models
+
+```js
+const mongoose = require("mongoose");
+
+const ProductSchema = new mongoose.Schema({
+    name: {
+        type: String,
+        required: [true, "product name must be provided"],
+    },
+    price: {
+        type: Number,
+        required: [true, "product price must be provided"],
+    },
+    featured: {
+        type: Boolean,
+        default: false,
+    },
+    rating: {
+        type: Number,
+        default: 4.5,
+    },
+    createdAt: {
+        type: Date,
+        default: Date.now(),
+    },
+    company: {
+        type: String,
+        enum: {
+            values: ["ikea", "liddy", "caressa", "marcos"],
+            message: "{VALUE} is not supported",
+        },
+        // enum: ['ikea', 'liddy', 'caressa', 'marcos'],
+    },
+});
+
+module.exports = mongoose.model("Product", ProductSchema);
+```
+- Automating adding to database
+```js
+// product.json which will have data
+
+// populate.js to add data from product.json to database
+require("dotenv").config();
+
+const connectDB = require("./db/connect");
+const Product = require("./models/productModel");
+
+const jsonProducts = require("./products.json");
+
+const start = async () => {
+    try {
+        await connectDB(process.env.MONGO_URI);
+        await Product.deleteMany();
+        await Product.create(jsonProducts);
+        console.log("Success!!!!");
+        process.exit(0);
+    } catch (error) {
+        console.log(error);
+        process.exit(1);
+    }
+};
+
+start();
+
+```
+## Extra Opertions in mongoose
+
+### Mongoose Filter Methods
+
+- Product.deleteMany()
+- Product.find({})
+- Product.create(jsonProducts) //Array of product objects
+
+// Hard Coded filter values
+- Product.find({ featured: true, price:{ $gt:30} }).sort('-name price').select('name price featured').limit(4).skip(1);
+res.status(200).json({ products, nbHits: products.length });
+
+- Product.find({ name: 'vase table' });
+
+// Filtering values based on request
+
+#### query params
+
+```js
+
+//{{URL}}/products?name=john&featured=true
+
+const products = await Product.find(req.query);
+res.status(200).json({ products, nbHits: products.length });
+
+```
+- if we pass something which property doesn't exist in schema
+
+```js
+// pulling out only the values that you require
+const {featured, company, name} = req.query
+const queryObject = {}
+if(featured){
+    queryObject.featured = featured === 'true'? true: false
+}
+if(company){
+    queryObject.company = company
+}
+if(name){
+    queryObject.name = { $regex: name, $options:'i'} // regex setup
+}
+const products = await Product.find(queryObject);
+
+```
+### Mongoose sort filter
+
+```js
+//{{URL}}/products?sort=-name,price
+const {featured, company, name, sort} = req.query
+
+let query = Product.find(queryObject); // we cant await as we want to chain sort with the query
+if(sort){
+    const sortList = sort.split(',').join(' ');
+    query = query.sort(sortList);
+}else{
+     query = query.sort('createAt');
+}
+
+const products = await query
+```
+### Mongoose select filter
+
+```js
+//{{URL}}/products?sort=-name,price
+const {featured, company, name, sort, select} = req.query
+
+let query = Product.find(queryObject); // we cant await as we want to chain sort with the query
+
+//select
+if(select){
+    const selectList = sort.split(',').join(' ');
+    query = query.select(selectList);
+}
+const products = await query
+```
+
+### Mongoose skip and limit filter
+
+```js
+//{{URL}}/products?sort=-name,price&limit=10&page=2
+const {featured, company, name, sort, select} = req.query
+
+const page = Number(req.params.page) || 1
+const limit = Number(req.params.limit) || 10
+
+const skip = (page -1) * limit;
+
+query = query.skip(skip).limit(limit)
+//23
+//4 7 7 7 2
+
+```
+
+### Mongoose numeric filter
+```js
+//{{URL}}/products?numericFilters=price>40,ratings>=4
+const {featured, company, name, sort, select, numerFilters} = req.query
+
+if(numerFilters){
+    const operatorMap = {
+        '>':'$gt',
+        '>=':'$gte',
+        '=':'$eq',
+        '<':'$lt',
+        '<=':'$lte',
+    }
+    const regEX = /\b(<|>|>=|=|<|<=)\b/g
+    let filters = numerFilters.replace(regEx, (match)=>`-${operatorMap[match]}-`);
+    const options = ['price', 'rating'];
+    filters = filters.split(',').forEach((item=>{
+        const [field, operator, value] = items.split('-')
+        if(options.include(field)){
+            queryObject[field] = {[operator]:Number(value)}
+        }
+    }))
+
+}
+
+```
+
 
 ## Heroku Deployment
 
