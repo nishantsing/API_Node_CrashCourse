@@ -827,7 +827,7 @@ app.set("views", path.join(__dirname))
 app.set("view engine", "ejs")
 ```
 
-#### mongodb - ORM mongoose, sql - ORM sequelize
+#### mongodb - ORM mongoose, sql - ORM sequelize, prisma(postgress), drizzle
 
 - [Mongodb Atlas](https://www.mongodb.com/docs/atlas/getting-started/)
 - Login - Create Cluster - Database Access(Add User) - Network Access(0.0.0.0/0) - Connect(connect your appplication - URI)
@@ -1587,9 +1587,15 @@ app.use(cors())
 app.use('/static',express.static("./public")); 
 
 
-## Heroku Deployment
+## Heroku Deployment (Vercel, Netlify, Firebase Hosting, AWS Free tier, Render, Cyclic, Deta)
+
 
 ## Swagger API Documentation
 
+
+## Github Page - Deploying your code
+- only supports static file and doesnt support any server side languages
+- SQLite
+sql js
 
 ## Astro Starlight Documentation
