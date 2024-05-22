@@ -1624,16 +1624,77 @@ sql js
 
 ### User Model
 
+
 - Email Validation Regex
 
 ```/^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/```
+```js
+// schema
+email:{
+    match:[/<regex>/, 'Please provide a valid email'],
+    unique:true,
+}
+
+```
 
 ### Register User
 
 - Validate - name, email, password - with Mongoose
 - Hash Password (with bcryptjs)
+```js
+// components/user.js
+const register = async(req, res)=>{
+    const { name, email, password} = req.body
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt)
+    const tempUser = {name, email, password:hashedPassword} 
+    const user = await User.create({...tempUser})
+    res.status(201).json({user})
+}
+```
+
+
+### Hashing can be refractored using mongoose internal middleware, these are different from the ones we create
+```js
+// model/ user.js
+UserSchema.pre('save', async function(next){ // dont use arrow function due to "this" keyword scope
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(password, salt) // this in scope refers to the model
+    // next() no need to use next as we are using async await
+})
+
+// components/user.js
+const register = async(req, res)=>{
+    const user = await User.create({...req.body})
+    res.status(201).json({user})
+}
+
+
+```
+- before any save call it will hash the password, so while creating as well it will do the same
 - Save User
 - Generate Token
+### Schema instance method
+
+```js
+
+UserSchema.methods.getName = function(){
+    return this.name
+}
+
+const user = await User.create({...req.body})
+console.log(user.getName())
+
+
+UserSchema.methods.createJWT = function(){
+    return jwt.sign({userId:this._id, name:this._name}, 'jwtSecret',{expiresIn:'30d'})
+}
+
+const user = await User.create({...req.body})
+const token = user.createJWT()
+res.status(201).json({user:{name: user.name}, token})
+
+```
 - Send Response with Token
 
 ### Login User
@@ -1642,9 +1703,33 @@ sql js
 - If email or password is missing, throw BadRequestError
 - Find User
 - Compare Passwords
+
+```js
+
+
+
+UserSchema.methods.comparePassword = async function(candidatePassword){
+    const isMatch = await bcrypt.compare(candidatePassword, this.password)
+    return isMatch
+}
+
+const {email, password} = req.body
+const user = await User.findOne({email})
+const isPasswordCorrect = await user.comparePassword(password)
+
+const token = user.createJWT()
+res.status(200).json({user:{name:user.name}, token})
+```
 - If no user or password does not match, throw UnauthenticatedError
 - If correct, generate Token
 - Send Response with Token
+
+
+```js
+const authenticateUser = require('./middleware/authentication')
+
+app.use('/api/v1/jobs', authenticateUser, jobsRouter)
+```
 
 ### Mongoose Errors
 
