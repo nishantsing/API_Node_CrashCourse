@@ -1724,6 +1724,20 @@ res.status(200).json({user:{name:user.name}, token})
 - If correct, generate Token
 - Send Response with Token
 
+- auth middleware
+
+```js
+const payload = jwt.verify(token,process.env.JWT_SECRET)
+
+// Not using this because currently we don't have functionality to remove the user, if it was there we would have to do this way.
+// const user = User.findById(payload.id).select('-password') // removes password column
+// req.user = user
+
+req.user = {userId: payload.userId, name:payload.name} // since token was created using id and name we can get it directly from the jwt token.
+next()
+
+```
+
 
 ```js
 const authenticateUser = require('./middleware/authentication')
