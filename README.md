@@ -278,7 +278,17 @@ URL http://localhost:5000/api/v1
 - and do the same for all the routes
 body - raw -json
 
+- Dynamically setting authorization Header
+    - goto login user route in postman repeating same in register
+    - In Tests tab
+    ```js
+    const jsonData = pm.response.json()
+    pm.globals.set("accessToken", jsonData.token)
 
+    ```
+    - goto create job route in postman
+    - In Authorization tab - Type Bearer instead of inherit - Token - {{accessToken}}
+    
 
 ##### fs module
 - There is a sync(blocks the execution) and async version. Most of the cases we would like to use async version and in async there is a callaback(default) and a promise version.
@@ -1062,8 +1072,13 @@ name: {
         type: String,
         required:[true, 'must provide a name'],
         trim:true,
+        minlength:3
         maxlength:[20,'name can not be more than 20 characters']
-    }
+},
+email:{
+    match:[/<regex>/, 'Please provide a valid email'],
+    unique:true,
+}
 
 ```
 
@@ -1668,3 +1683,196 @@ app.use(xss())
 sql js
 
 ## Astro Starlight Documentation
+
+
+
+
+## Creating a jobs API
+
+### Database Connection
+
+1. Import connect.js
+2. Invoke in start()
+3. Setup .env in the root
+4. Add MONGO_URI with correct value
+
+### Routers
+
+- auth.js
+- jobs.js
+
+### User Model
+
+
+- Email Validation Regex
+
+```/^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/```
+```js
+// schema
+email:{
+    match:[/<regex>/, 'Please provide a valid email'],
+    unique:true,
+}
+
+```
+
+### Register User
+
+- Validate - name, email, password - with Mongoose
+- Hash Password (with bcryptjs)
+```js
+// components/user.js
+const register = async(req, res)=>{
+    const { name, email, password} = req.body
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt)
+    const tempUser = {name, email, password:hashedPassword} 
+    const user = await User.create({...tempUser})
+    res.status(201).json({user})
+}
+```
+
+
+### Hashing can be refractored using mongoose internal middleware, these are different from the ones we create
+```js
+// model/ user.js
+UserSchema.pre('save', async function(next){ // dont use arrow function due to "this" keyword scope
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(password, salt) // this in scope refers to the model
+    // next() no need to use next as we are using async await
+})
+
+// components/user.js
+const register = async(req, res)=>{
+    const user = await User.create({...req.body})
+    res.status(201).json({user})
+}
+
+
+```
+- before any save call it will hash the password, so while creating as well it will do the same
+- Save User
+- Generate Token
+### Schema instance method
+
+```js
+
+UserSchema.methods.getName = function(){
+    return this.name
+}
+
+const user = await User.create({...req.body})
+console.log(user.getName())
+
+
+UserSchema.methods.createJWT = function(){
+    return jwt.sign({userId:this._id, name:this._name}, 'jwtSecret',{expiresIn:'30d'})
+}
+
+const user = await User.create({...req.body})
+const token = user.createJWT()
+res.status(201).json({user:{name: user.name}, token})
+
+```
+- Send Response with Token
+
+### Login User
+
+- Validate - email, password - in controller
+- If email or password is missing, throw BadRequestError
+- Find User
+- Compare Passwords
+
+```js
+
+
+
+UserSchema.methods.comparePassword = async function(candidatePassword){
+    const isMatch = await bcrypt.compare(candidatePassword, this.password)
+    return isMatch
+}
+
+const {email, password} = req.body
+const user = await User.findOne({email})
+const isPasswordCorrect = await user.comparePassword(password)
+
+const token = user.createJWT()
+res.status(200).json({user:{name:user.name}, token})
+```
+- If no user or password does not match, throw UnauthenticatedError
+- If correct, generate Token
+- Send Response with Token
+
+- auth middleware
+
+```js
+const payload = jwt.verify(token,process.env.JWT_SECRET)
+
+// Not using this because currently we don't have functionality to remove the user, if it was there we would have to do this way.
+// const user = User.findById(payload.id).select('-password') // removes password column
+// req.user = user
+
+req.user = {userId: payload.userId, name:payload.name} // since token was created using id and name we can get it directly from the jwt token.
+next()
+
+```
+
+
+```js
+const authenticateUser = require('./middleware/authentication')
+
+app.use('/api/v1/jobs', authenticateUser, jobsRouter)
+```
+
+### Joining 2 schemas (foreign key concept) | Tieing Job and User model
+- In JobSchema
+```js
+JobSchema = mongoose.Schema({
+    ...company, position, status...
+    createdBy:{
+    type:mongoose.Types.ObjectId,
+    ref:'User', // model name - collection name
+    required:[true, 'Please provide user']
+    }
+},{timestamps:true})
+
+```
+
+- using it in job controllers
+```js
+const createJob = async(req,res)=>{
+    req.body.createdBy = req.user.userId // getting this from auth middleware
+    const job = await Job.create(req.body)
+    res.status(201).json({job})
+}
+
+// const {user:{userId}, params:{id:jobId}} = req
+// In above code we are trying to get userId from user key and jobId from param key inside the req object and giving alias to the jobID as id
+
+```
+
+### Mongoose Errors
+
+- Validation Errors
+- Duplicate (Email)
+- Cast Error
+
+### Security
+
+- helmet
+- cors
+- xss-clean
+- express-rate-limit
+
+### Swagger UI
+
+```
+/jobs/{id}:
+  parameters:
+    - in: path
+      name: id
+      schema:
+        type: string
+      required: true
+      description: the job id
+```
