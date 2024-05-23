@@ -1586,12 +1586,81 @@ app.use(cors())
 - Changing the URL path for static files
 app.use('/static',express.static("./public")); 
 
+### Other ways of handling error
+
+```js
+// middleware/error-handler
+const errorHandlerMiddleware = (err, req, res, next) => {
+  let customError = {
+    // set default
+    statusCode: err.statusCode || StatusCodes.INTERNAL_SERVER_ERROR,
+    msg: err.message || 'Something went wrong try again later',
+  }
+
+  // if (err instanceof CustomAPIError) {
+  //   return res.status(err.statusCode).json({ msg: err.message })
+  // }
+
+  if (err.name === 'ValidationError') {
+    customError.msg = Object.values(err.errors)
+      .map((item) => item.message)
+      .join(',')
+    customError.statusCode = 400
+  }
+  if (err.code && err.code === 11000) {
+    customError.msg = `Duplicate value entered for ${Object.keys(
+      err.keyValue
+    )} field, please choose another value`
+    customError.statusCode = 400
+  }
+  if (err.name === 'CastError') {
+    customError.msg = `No item found with id : ${err.value}`
+    customError.statusCode = 404
+  }
+
+  return res.status(customError.statusCode).json({ msg: customError.msg })
+}
+
+```
+
+## Security
+
+- npm packages helmet, cors, xss-clean, express-rate-limit
+
+```js
+
+app.set('trust proxy', 1) // Since API is behind heroku
+app.use(rateLimiter({
+    windowMs: 15*60*1000,
+    max:100
+}))
+app.use(helmet())
+app.use(cors())
+app.use(xss())
+
+
+```
 
 ## Heroku Deployment (Vercel, Netlify, Firebase Hosting, AWS Free tier, Render, Cyclic, Deta)
+[Herouku Docs for deploying nodejs](https://devcenter.heroku.com/articles/deploying-nodejs)
+- In monodb atlas allow access from anywhere.
+- sign in to heroku
+- install heroku cli
+- heroku -v
+- package.json changes for engine and start
 
+- git and heroku push
+- setting env variables in heroku
+- restarting dynamo
 
 ## Swagger API Documentation
+- postman if we publish the docs it gives some random url
+- collection(make sure urls are all the same in all the requests) - export
+- apimatic - import(your postman collection) - edit api
+- npm package 
 
+- export (OpenAPI v3.0 yaml )
+- swagger ui editor - paste that yaml
 
 ## Github Page - Deploying your code
 - only supports static file and doesnt support any server side languages
