@@ -278,7 +278,17 @@ URL http://localhost:5000/api/v1
 - and do the same for all the routes
 body - raw -json
 
+- Dynamically setting authorization Header
+    - goto login user route in postman repeating same in register
+    - In Tests tab
+    ```js
+    const jsonData = pm.response.json()
+    pm.globals.set("accessToken", jsonData.token)
 
+    ```
+    - goto create job route in postman
+    - In Authorization tab - Type Bearer instead of inherit - Token - {{accessToken}}
+    
 
 ##### fs module
 - There is a sync(blocks the execution) and async version. Most of the cases we would like to use async version and in async there is a callaback(default) and a promise version.
@@ -1743,6 +1753,33 @@ next()
 const authenticateUser = require('./middleware/authentication')
 
 app.use('/api/v1/jobs', authenticateUser, jobsRouter)
+```
+
+### Joining 2 schemas (foreign key concept) | Tieing Job and User model
+- In JobSchema
+```js
+JobSchema = mongoose.Schema({
+    ...company, position, status...
+    createdBy:{
+    type:mongoose.Types.ObjectId,
+    ref:'User', // model name - collection name
+    required:[true, 'Please provide user']
+    }
+},{timestamps:true})
+
+```
+
+- using it in job controllers
+```js
+const createJob = async(req,res)=>{
+    req.body.createdBy = req.user.userId // getting this from auth middleware
+    const job = await Job.create(req.body)
+    res.status(201).json({job})
+}
+
+// const {user:{userId}, params:{id:jobId}} = req
+// In above code we are trying to get userId from user key and jobId from param key inside the req object and giving alias to the jobID as id
+
 ```
 
 ### Mongoose Errors
