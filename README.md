@@ -1677,6 +1677,26 @@ app.use(xss())
 - export (OpenAPI v3.0 yaml )
 - swagger ui editor - paste that yaml
 
+- once tested in swagger ui
+- we need to add it in our application - npm packages (swagger-ui-express, yamljs)
+- create new file swagger.yaml and paste the working swagger documentation that we tested
+- In app.js
+```js
+const swaggerUI = require('swagger-ui-express')
+const YAML = require('yamljs')
+
+const swaggerDocument = YAML.load('./swagger.yaml')
+
+
+app.get('/',(req, res)=>{
+    res.send('<h1>Jobs API</h1><a href="/api-docs">Documentation</a>)
+})
+app.use('/api-docs', swaggerUI.serve, swaggerUI.setup(swaggerDocument))
+
+
+```
+- on local you can see basic setup but there would be bunch of errors
+
 ## Github Page - Deploying your code
 - only supports static file and doesnt support any server side languages
 - SQLite
