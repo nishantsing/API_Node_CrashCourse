@@ -1090,10 +1090,12 @@ email:{
 
 - Task.find({})
 - Task.create({})
-- Task.findOne({_id:}) - always check whethere the task with the id exists
+- const task = Task.findOne({_id:}) - always check whethere the task with the id exists
+- task.save() // triggers pre and post hooks so keep that in mind.
 - findOneAndUpdate({_id:}, {}) - gets oldOne and doesn't run validator
 - update options findOneAndUpdate({_id:}, req.body, {new:true, runValidators: true}) 
 - Task.findOneAndDelete({_id:}) - always check whethere the task with the id exists
+- 
 
 - To use static file
 app.use(express.static('./public'))
@@ -1402,10 +1404,11 @@ const {featured, company, name, sort, select} = req.query
 
 const page = Number(req.query.page) || 1
 const limit = Number(req.query.limit) || 10
-
 const skip = (page -1) * limit;
 
 query = query.skip(skip).limit(limit)
+const totalProducts = await Product.countDocuments(queryObject);
+const numOfPages = Math.ceil(totalProducts / limit);
 //23
 //4 7 7 7 2
 
@@ -1476,7 +1479,11 @@ const authenticationMiddleware = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET)
+    
     const { id, username } = decoded
+    // restricting certain option on a test user
+    // const testUser = id === '62efdsfsdklj24342njksd';// even check with the username
+    // req.user = { id, username, testUser }
     req.user = { id, username }
     next()
   } catch (error) {
@@ -1487,6 +1494,7 @@ const authenticationMiddleware = async (req, res, next) => {
 // routes/main
 router.route('/dashboard').get(authMiddleware, dashboard) // adding auth middleware for the route
 ```
+- Note: If in some route we are updating username or id we need to create a new JWT token from that updated values.
 
 ### Creating Admin Auth Middleware
 
@@ -1645,14 +1653,32 @@ const errorHandlerMiddleware = (err, req, res, next) => {
 ```js
 
 app.set('trust proxy', 1) // Since API is behind heroku
+// this for whole app(all routes) we can have for specific routes as well
 app.use(rateLimiter({
     windowMs: 15*60*1000,
     max:100
 }))
+
 app.use(helmet())
-app.use(cors())
+app.use(cors()) // no need if you just want your express frontend to use it. Needed if you want some other url to access the api
 app.use(xss())
 
+
+```
+
+- Rate limiter for simgle route
+```js
+const apiLimiter = rateLimiter({
+    windowMs: 15*60*1000, // 15 minutes
+    max:10,
+    message:{
+        msg:'Too many requests from this IP, please try again after 15 minutes'
+    }
+
+})
+
+router.post('/register', apiLimiter, register);
+router.post('/login', apiLimiter, login);
 
 ```
 
@@ -1732,6 +1758,12 @@ sql js
 email:{
     match:[/<regex>/, 'Please provide a valid email'],
     unique:true,
+},
+lastName:{
+    type:String,
+    trim:true,
+    maxlength:20,
+    default:'lastName'
 }
 
 ```
@@ -1752,11 +1784,16 @@ const register = async(req, res)=>{
 }
 ```
 
+- create and save triggers pre and post save hooks
+
+- Find and Update Operations: Methods like updateOne(), updateMany(), findByIdAndUpdate(), etc., do not trigger pre and post save hooks. For these methods, you can use pre and post hooks for update operations (pre('updateOne'), pre('findOneAndUpdate'), etc.).
+
 
 ### Hashing can be refractored using mongoose internal middleware, these are different from the ones we create
 ```js
 // model/ user.js
 UserSchema.pre('save', async function(next){ // dont use arrow function due to "this" keyword scope
+    if(this.isModified('password')) return;// if somewhere you are updating and used findOne and save this pre hook will get triggered and hash the password again which we don't want so unless and until password is changed we don't want to hash password.
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(password, salt) // this in scope refers to the model
     // next() no need to use next as we are using async await
@@ -1895,4 +1932,298 @@ const createJob = async(req,res)=>{
         type: string
       required: true
       description: the job id
+```
+
+
+- You can create a react app separately and build it to get static files and use it in express using express.static middleware like we do for static files.
+
+
+``js
+app.get('*', (req,res)=>{
+    res.send(path.resolve(__dirname, './client/build','index.html'))
+})
+
+```
+
+- In frontend create a model object that keep tracks of various fields on a form.
+
+## Fake data
+- Mackaroo website
+    - use same exact field names as your schema (for date selectt iso 8601) and  custom lists for enums
+    - save as json(mock-data.json)
+    - add to database using "Automating adding to database" section
+
+
+## Restrictin a test user from CRUD operations
+
+
+- middleware/authentication.js
+```js
+ // restricting certain option on a test user
+    const { id, username } = decoded
+    const testUser = id === '62efdsfsdklj24342njksd';// even check with the username
+    req.user = { id, testUser }
+
+```
+- creating testingUser in middleware
+
+```js
+const testUser = (req, res, next)=>{
+    if(req.user.testUser){
+        throw new BadRequestError('Test User. Read Only!')
+    }
+    next();
+}
+
+```
+
+- add to auth routes (updateUser) -> route for updating user details
+```js
+router.patch('/updateUser', authenticateUser, testUser, updateUser)
+
+```
+
+## Mongodb Aggregation pipeline(grouping- avg, total max)
+
+- npm i moment
+
+```js
+// jobs controller
+
+const showStats = async(req, res)=>{
+    // req.user.userId is string we want to pass object
+    let stats = await Job.aggregate([
+        {$match:{ createdBy: mongoose.Types.ObjectId(req.user.userId)}}, // all the jobs created by the user id that is logged in
+        {$group: {_id: '$status',count:{$sum:1}}} // property name you want to group based on, _id can be set according to the need.
+    ])
+
+    /*
+    stats = [{_id:'declined', count:22},{_id:'interview', count:25},{_id:'pending', count:28}]
+    */
+
+    //    we want to convert the above object into something where status is key and count is value
+
+    /*
+    stats = {declined: 22},{interview: 25},{pending:28}
+    */
+
+    stats = stats.reduce((acc, curr)=>{
+        const {_id:title, count} = curr; // giving title alias to _id
+        acc[title] = count;
+        return acc
+    },{})
+
+    const defaultStats = {
+        pending:  stats.pending || 0,
+        interview: stats.interview || 0,
+        declined: stats.declined || 0
+    }
+
+    let monthlyApplications = await Job.aggregate([
+        {$match:{ createdBy: mongoose.Types.ObjectId(req.user.userId)}},
+        {
+            $group: {
+                _id: {year: {$year: '$createdAt'}, month:{$month: '$createdAt'}},
+                count:{$sum:1}
+            } // gives all
+        },
+        { $sort: {'_id.year':-1, '_id.month':-1}}, // sorts them
+        {$limit: 6} // gets only latest 6
+    ]);
+
+    /*
+    monthlyApplications = [{_id: {year:2022, month:8 }, count: 5},{_id: {year:2022, month:7 }, count: 6},{_id: {year:2022, month:6 }, count: 5}, {_id: {year:2022, month:5 }, count: 4}, {_id: {year:2022, month:3 }, count: 6}, {_id: {year:2022, month:1 }, count: 8}]
+    */
+
+    monthlyApplications = monthlyApplications.map((item)=>{
+        const{
+            _id:{year, month},
+            count
+        }= item;
+        const date = moment().month(month - 1).year(year).format('MMM Y')
+        return {date,count}
+    }).reverse();
+
+    /*
+    monthlyApplications = [{date: 'Aug 2022', count: 5},{date: 'July 2022', count: 6}...]
+    */
+
+
+    res.status(StatusCodes.OK).json({defaultStats, monthlyApplications})
+
+
+}
+
+```
+
+## File and Image upload(Product)
+
+- npm package express-fileupload
+
+```js
+// app.js
+const fileUpload = require('express-fileupload')
+app.use(express.static('./public'))
+app.use(fileUpload)
+
+
+```
+
+```js
+//models/Product
+image:{
+    type:String,
+    required:true
+}
+```
+
+- 3 routes createProduct, getAllProducts, uploadImage
+        post(/products)   get(/products)   post(products/upload)
+- we need uploadImage route to upload the image on the server first and the path to the image folder should be publically accessible.
+
+```js
+//controllers/productController
+const createProduct = async(req, res)=>{
+    const product = await Product.create(req.body)
+    res.status(StatusCode.CREATED).json({product})
+}
+const getAllProducts = async(req, res)=>{
+    const products = await Product.find({})
+    res.status(StatusCode.OK).json({products})
+}
+
+//controllers/uploadController
+const path = require('path');
+const uploadProductImageLocal = async(req, res)=>{
+    if(!req.files) throw new CustomError.BadRequestError('No File Uploaded')
+    const productImage = req.files.image;
+    if(!productImage.mimetype.startsWith('image')) throw some error...
+    const maxSize = 1024 * 1024
+    if(productImage.size > maxSize) throw some error...
+    const imagePath = path.join(__dirname,'../public/uploads/'+`${productImage.name}`);
+    await productImage.mv(imagePath)
+    return res.status(StatusCode.OK).json({image:{src:`/uploads/${productImage.name}`}})
+    // small path because frontend already points to the server
+
+}
+```
+- postman - body - form-data KEY:image  value-pick file
+
+- storing image in cloud rather than our server (cloudinary)
+    - create account and get 3 values(Cloud name, API Key, API Secret) add them to .env
+    - npm package cloudinary
+    - we use express-fileupload package to upload file on temp location and add to cloudinary and then removing the temp file.
+
+```js
+//app.js
+const cloudinary = require('cloudinary').v2
+cloudinary.confirm({
+    cloud_name: process.env.CLOUD_NAME,
+    api_key:process.env.CLOUD_API_KEY,
+    api_secret:process.env.CLOUD_API_SECRET
+})
+const fileUpload = require('express-fileupload')
+app.use(express.static('./public'))
+app.use(fileUpload({useTempFiles:true}))
+
+//controllers/uploadController
+const cloudinary = require('cloudinary').v2
+const fs = require('fs');
+const uploadProductImageCloud = async(req, res)=>{
+    // 2 ways, either get the images stored on our servers or use stream, we are using first
+    const result = await cloudinary.uploader.upload(req.files.image.tempFilePath,{
+        use_filename:true
+        folder:'file-upload' // create this folder in cloudinary
+    });
+    //removing temp files after successfull upload
+    fs.unlinkSync(req.files.image.tempFilePath)
+    return res.status(StatusCode.OK).json({image:{src:result.secure_url}})
+
+}
+
+```
+
+## Sending Emails
+- npm package Nodemailer
+- ethereal(mailtrap, production: sendGrid, mailthen) // SMTP service
+    - create account
+-  sendGrid - create account - create a single sender
+```js
+// controllers/sendEmail
+
+const nodemailer = require('nodemailer');
+const sgMail = require('@sendgrid/mail');
+
+const sendEmailEthereal = async (req, res) => {
+  let testAccount = await nodemailer.createTestAccount();
+
+  const transporter = nodemailer.createTransport({
+    host: 'smtp.ethereal.email', // create values in .env
+    port: 587,
+    auth: {
+      user: 'marlene.legros@ethereal.email', //.env
+      pass: 'va4q5BKKtry7aq58Gv', //.env
+    },
+  });
+
+  let info = await transporter.sendMail({
+    from: '"Coding Addict" <codingaddict@gmail.com>',
+    to: 'bar@example.com',
+    subject: 'Hello',
+    html: '<h2>Sending Emails with Node.js</h2>',
+  });
+
+  res.json(info);
+};
+
+const sendEmail = async (req, res) => {
+  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+  const msg = {
+    to: 'learncode@mail.com', // Change to your recipient
+    from: 'learncodetutorial@gmail.com', // Change to your verified sender
+    subject: 'Sending with SendGrid is Fun',
+    text: 'and easy to do anywhere, even with Node.js',
+    html: '<strong>and easy to do anywhere, even with Node.js</strong>',
+  };
+  const info = await sgMail.send(msg);
+  res.json(info);
+};
+
+module.exports = sendEmail;
+
+
+```
+
+## Stripe Payment
+
+- create free stripe account
+    - developers - apikey
+- npm package stripe
+- public key in frontend js file
+
+```js
+
+ap.post('/stripe', stripeController);
+
+//controllers/stripeController.js
+const stripe = require('stripe')(process.env.STRIPE_KEY);
+
+const stripeController = async (req, res) => {
+  const { purchase, total_amount, shipping_fee } = req.body;
+
+  const calculateOrderAmount = () => {
+    //always check from database the price
+    return total_amount + shipping_fee;
+  };
+
+  const paymentIntent = await stripe.paymentIntents.create({
+    amount: calculateOrderAmount(),
+    currency: 'usd',
+  });
+
+  res.json({ clientSecret: paymentIntent.client_secret });
+};
+
+module.exports = stripeController;
+
 ```
