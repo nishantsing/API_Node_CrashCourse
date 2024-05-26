@@ -2227,3 +2227,150 @@ const stripeController = async (req, res) => {
 module.exports = stripeController;
 
 ```
+
+
+## Auth using passport
+
+- npm init (express ejs bcrypt passport passport-local express-session express-flash method-override) (nodemon dotenv)
+- using template engine like ejs
+- To extend it connect to db and do it
+
+```js
+//app.js
+if(process.env.NODE_ENV !== 'production'){
+    require('dotenv').config()
+}
+const passport = require('passport')
+const flash = require('express-flash')
+const session = require('express-session')
+const initializePassport = require('./passport-config')
+const methodOverride = require('method-override')
+initializePassport(
+    passport, 
+    email=> users.find(user=>user.email===email)
+     id => users.find(user => user.id === id)
+)
+
+const users = []
+app.set('view-engine','ejs')
+app.use(express.urlencoded({extended: false})) // get form data in req variable
+
+app.use(flash())
+app.use(session({
+    secret: something// add this to .env file
+    resave:false,
+    saveUninitialized:false
+}))
+app.use(passport.initialize())
+app.use(passport.session())
+app.use(methodOverride('_method'))
+
+app.get('/', checkAuthenticated, (req,res)=>{
+    res.render('index.ejs', {name: req.user.name})
+})
+
+app.get('/login', checkNotAuthenticated, (req,res)=>{
+    res.render('login.ejs')
+})
+
+app.post('/login', checkNotAuthenticated, passport.authenticate('local', {
+  successRedirect: '/',
+  failureRedirect: '/login',
+  failureFlash: true
+}))
+
+app.get('/register', checkNotAuthenticated, (req,res)=>{
+    res.render('register.ejs')
+})
+
+app.post('/register', checkNotAuthenticated, async (req,res)=>{
+    try{
+        const hashedPassword = await bcrypt.hash(req.body.password, 10)
+        users.push({
+            id:Date.now().toString(),
+            name: req.body.name
+            email: req.body.email
+            password: hashedPassword
+        })
+        res.redirect('/login')
+    }catch{
+        res.redirect('/register')
+    }
+    
+
+})
+
+app.delete('/logout', (req, res) => {
+  req.logOut() //passport
+  res.redirect('/login')
+})
+
+
+
+function checkAuthenticated(req, res, next) {
+  if (req.isAuthenticated()) {
+    return next()
+  }
+
+  res.redirect('/login')
+}
+
+function checkNotAuthenticated(req, res, next) {
+  if (req.isAuthenticated()) {
+    return res.redirect('/')
+  }
+  next()
+}
+
+// index.ejs
+
+
+<h1>Hi <%= name %> </h1>
+<form action="/logout?_method=DELETE" method="POST">
+  <button type="submit">Log Out</button>
+</form>
+
+
+// login.ejs
+
+<% if(messsages.error) { %>
+<%= messages.error %>
+<% } %>
+
+// resgister.ejs
+<h1>Register</h1>
+<form action="/register" method="POST">
+// ..name email password input fields
+</form>
+
+// passport-config.js
+const LocalStrategy = require('passport-local').Strategy
+const bcrypt = require('bcrypt')
+
+ function initialize(passport, getUserByEmail, getUserById) {
+  const authenticateUser = async (email, password, done) => {
+    const user = getUserByEmail(email)
+    if (user == null) {
+      return done(null, false, { message: 'No user with that email' })
+    }
+
+    try {
+      if (await bcrypt.compare(password, user.password)) {
+        return done(null, user)
+      } else {
+        return done(null, false, { message: 'Password incorrect' })
+      }
+    } catch (e) {
+      return done(e)
+    }
+  }
+
+  passport.use(new LocalStrategy({ usernameField: 'email' }, authenticateUser))
+  passport.serializeUser((user, done) => done(null, user.id)) // to store inside session
+  passport.deserializeUser((id, done) => {
+    return done(null, getUserById(id))
+  })
+}
+
+module.exports = initialize
+```
