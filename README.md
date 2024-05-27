@@ -669,6 +669,13 @@ app.use(logger);
 
 ```
 
+- npm package morgan can be used for logger
+```js
+const morgan = require("morgan");
+app.use(morgan("tiny"));
+
+```
+
 #### custom error handling in express
 
 - Custom Error Handler
@@ -1766,6 +1773,22 @@ lastName:{
     default:'lastName'
 }
 
+```
+
+#### Custom Validation
+
+- npm package validator
+```js
+
+const validator = require("validator")
+email:{
+    type:String,
+    validate:{
+        validator:validator.isEmail,
+        message:'Please provide valid email'
+    }
+    unique:true,
+}
 ```
 
 ### Register User
