@@ -2301,7 +2301,7 @@ app.post('/register', checkNotAuthenticated, async (req,res)=>{
 })
 
 app.delete('/logout', (req, res) => {
-  req.logOut() //passport
+  req.logout() //in passport 0.6 and above it expects a callback function so might give error use carefully
   res.redirect('/login')
 })
 
@@ -2374,3 +2374,12 @@ const bcrypt = require('bcrypt')
 
 module.exports = initialize
 ```
+
+## Difference between JWT and Passport
+
+- JWT is a Stateless authentication while passport is a flexible and modular approach to implementing various authentication strategies(e.g., local, OAuth, JWT).
+    - Stateless authentication
+        - The server does not store any session data about the client between requests. Each request from the client must contain all the information needed to verify the user's identity and permissions.
+        - The most common form of stateless authentication uses tokens. When a user logs in, the server issues a token that the client stores (e.g., in local storage or a cookie). The client then sends this token with each subsequent request.
+        - Tokens like JWTs are self-contained, meaning they carry all the necessary information about the user, such as their identity and any claims (permissions). The token is signed by the server to prevent tampering.
+- JWT is scalable and in passport a JWT strategy can be used to implement the same. 
