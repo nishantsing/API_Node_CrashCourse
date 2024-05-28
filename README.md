@@ -1102,7 +1102,7 @@ email:{
 - findOneAndUpdate({_id:}, {}) - gets oldOne and doesn't run validator
 - update options findOneAndUpdate({_id:}, req.body, {new:true, runValidators: true}) 
 - Task.findOneAndDelete({_id:}) - always check whethere the task with the id exists
-- 
+- Task.countDocuments({})
 
 - To use static file
 app.use(express.static('./public'))
@@ -1876,6 +1876,7 @@ const {email, password} = req.body
 const user = await User.findOne({email})
 const isPasswordCorrect = await user.comparePassword(password)
 
+// you can also add these in separate util files or in the controller itself
 const token = user.createJWT()
 res.status(200).json({user:{name:user.name}, token})
 ```
@@ -2406,3 +2407,34 @@ module.exports = initialize
         - The most common form of stateless authentication uses tokens. When a user logs in, the server issues a token that the client stores (e.g., in local storage or a cookie). The client then sends this token with each subsequent request.
         - Tokens like JWTs are self-contained, meaning they carry all the necessary information about the user, such as their identity and any claims (permissions). The token is signed by the server to prevent tampering.
 - JWT is scalable and in passport a JWT strategy can be used to implement the same. 
+
+
+## Cookies
+
+- we were managing jwt tokens by sending jwt tokens in response and storing it in frontend using local storage.
+and then attaching those jwt tokens to our requests.
+
+- we will attach a cookie to a response and store the jwt in it. its gonna be hhtp only so only browser can access that token and will send it automatically with the next request.
+
+- for parsing cookie we need np package cookie-parser
+
+```js
+//app.js
+const cookieParser = require("cookie-parser")
+// app.use(cookieParser())// use this if you are sending cookie without signed flag
+app.use(cookieParser(process.env.JWT_SECRET))
+
+// controller
+// sending the cookies
+const oneDay = 1000 * 60 * 60 * 24
+res.cookie('token', token, {
+    httpOnly:true,
+    expires: new Date(Date.now() + oneDay),
+    secure:process.env.NODE_ENV === 'production',
+    signed:true
+})
+
+// parsing the cookies
+// req.cookies// if no signed flag 
+req.signedCookies // if signed flag true
+```
