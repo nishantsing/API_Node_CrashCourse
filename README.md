@@ -1571,6 +1571,7 @@ router.route("/").get(authenticateUser, authorizePermissions, getAllUsers);
 - we can make this authorizePermissions method more dynamic to take roles as arguments which will be valid for specific routes.
 
 ```js
+// Way 1
 router.route("/").get(authenticateUser, authorizePermissions('admin','owner'), getAllUsers); // expects a callback function but we are calling a fn instead so we need to return a function which will act as callback fn.
 
 const authorizePermissions = (...rest) => {
@@ -1582,6 +1583,19 @@ const authorizePermissions = (...rest) => {
         }
         next();
     };
+};
+
+// way 2 Not correct but try if you have time
+router.route("/").get(authenticateUser, (req, res, next)=>{authorizePermissions('admin','owner')}, getAllUsers); // expects a callback function but we are calling a fn instead so we need to return a function which will act as callback fn.
+
+
+const authorizePermissions = (...rest) => {
+        if (!roles.includes(req.user.role)) {
+            throw new CustomError.UnauthorizedError(
+                "Unauthorized to access this route"
+            );
+        }
+        next();
 };
 ```
 ### Creating Admin Auth Middleware
