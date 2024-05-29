@@ -1503,6 +1503,87 @@ router.route('/dashboard').get(authMiddleware, dashboard) // adding auth middlew
 ```
 - Note: If in some route we are updating username or id we need to create a new JWT token from that updated values.
 
+- authentication in case of cookies
+
+```js
+//utils
+const createJWT = ({ payload }) => {
+    const token = jwt.sign(payload, process.env.JWT_SECRET, {
+        expiresIn: process.env.JWT_LIFETIME,
+    });
+    return token;
+};
+
+const isTokenValid = ({ token }) => {
+    return jwt.verify(token, process.env.JWT_SECRET);
+};
+
+const attachCookiesToResponse = ({ res, user }) => {
+    const token = createJWT({ payload: user });
+    const oneDay = 1000 * 60 * 60 * 24;
+    res.cookie("token", token, {
+        httpOnly: true,
+        expires: new Date(Date.now() + oneDay),
+        secure: process.env.NODE_ENV === "production",
+        signed: true,
+    });
+    // res.status(201).json({ user });
+};
+
+//auth middleware
+const authenticateUser = async (req, res, next) => {
+    const token = req.signedCookies.token;
+
+    if (!token) {
+        throw new CustomError.UnauthenticatedError("Authentication Invalid");
+    }
+    try {
+        const { name, userId, role } = isTokenValid({ token });
+        req.user = { name, userId, role };
+        next();
+    } catch (e) {
+        throw new CustomError.UnauthenticatedError("Authentication Invalid");
+    }
+};
+
+```
+
+### authorize middleware
+
+- This middleware will run after the authentication middleware.
+
+- Checks whether the user is authorize to access the route.
+
+```js
+const authorizePermissions = (req, res, next) => {
+    if (req.user.role !== "admin") {
+        throw new CustomError.UnauthorizedError(
+            "Unauthorized to access this route"
+        );
+    }
+    console.log("admin route");
+    next();
+};
+
+router.route("/").get(authenticateUser, authorizePermissions, getAllUsers);
+
+```
+- we can make this authorizePermissions method more dynamic to take roles as arguments which will be valid for specific routes.
+
+```js
+router.route("/").get(authenticateUser, authorizePermissions('admin','owner'), getAllUsers); // expects a callback function but we are calling a fn instead so we need to return a function which will act as callback fn.
+
+const authorizePermissions = (...rest) => {
+    return (req, res, next) => {
+        if (!roles.includes(req.user.role)) {
+            throw new CustomError.UnauthorizedError(
+                "Unauthorized to access this route"
+            );
+        }
+        next();
+    };
+};
+```
 ### Creating Admin Auth Middleware
 
 
@@ -1607,8 +1688,11 @@ throw new UnauthenticatedError("No token provided");
 ### Notes
 
 - No cors required if you are triggering the public files using the express server itself because the origin is same but if you try to host them using vscode live server, you might face some cors issue because you will need to run them on different ports which is different origin.
-which can be easily fixed using the npm package cors
+which can be easily fixed using the npm package cors and having absolute route in frontend rather than relative one.
 
+absolute: 'http:localhost:3000/api/v1/auth' - if server and frontend are hosted on different domain, you need to provide the absolute path in frontend.
+
+relative: '/api/v1/auth' - both server and frontend are triggered at same origin using static file path or template engine.
 ```js
 const cors = require('cors')
 app.use(cors())
@@ -1828,6 +1912,20 @@ const register = async(req, res)=>{
     res.status(201).json({user})
 }
 
+
+```
+
+
+```js
+UserSchema.pre("save", async function () {
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+});
+
+UserSchema.methods.comparePassword = async function (candidatePassword) {
+    const isMatch = await bcrypt.compare(candidatePassword, this.password);
+    return isMatch;
+};
 
 ```
 - before any save call it will hash the password, so while creating as well it will do the same
@@ -2437,4 +2535,34 @@ res.cookie('token', token, {
 // parsing the cookies
 // req.cookies// if no signed flag 
 req.signedCookies // if signed flag true
+const token = req.signedCookies.token
+```
+- frontend application dosen't need to worry about cookies. browser does all the work.
+- unlike local storage you cannot access cookies the client side js
+- There is a maxsize of cookie, so you need to think before sending the amount of data.
+
+- can only use cookies in the same domain but if you are using react and running the frontend in different domain(http://localhost:3000), go to package.json
+
+```js
+
+//package.json
+"proxy":"http://localhost:5000"// path where server is running.
+
+```
+- Before proxy the request goes to the domain where react is runnning.
+- After adding proxy every request from frontend will be redirected to proxy path, so change and set relative path instead of absolute path in frontend.
+
+- Lets assume you host your react frontend on netlify and backend on heroku, In production you also need to set proxy and reroute from netlify to heroku for each request and it depends on the service we use.
+
+## logout
+
+```js
+const logout = async (req, res) => {
+    res.cookie("token", "logout", {
+        httpOnly: true,
+        expires: new Date(Date.now() + 5 * 1000),
+    });
+    res.status(StatusCodes.OK).json({ msg: "user logged out" });
+};
+
 ```
