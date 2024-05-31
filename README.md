@@ -1331,6 +1331,84 @@ start();
 ```
 ## Extra Opertions in mongoose
 
+### populate method (multiple links)
+
+- gets data regarding other models as well
+- get all the reviews and in the response instead of just productId it will also give other details of that product and same can be concatinated for user.
+- but this can be done if they are connected while creating the schema.
+```js
+const reviews = await Review.find({}).populate({
+        path: "product",
+        select: "name company price",
+}).populate({
+            path: "user",
+            select: "name",
+});
+
+// {
+//     "reviews": [
+//         {
+//             "_id": "6659ee203f33ed78996574ea",
+//             "rating": 2,
+//             "title": "review 1 updated",
+//             "comment": "better product",
+//             "user": {
+//                 "_id": "665618d7fb05a8eed0bb7dea",
+//                 "name": "shubham"
+//             },
+//             "product": {
+//                 "_id": "6659819870337b3a1dbba4dd",
+//                 "name": "testing product",
+//                 "price": 0,
+//                 "company": "ikea"
+//             },
+//             "createdAt": "2024-05-31T15:34:56.856Z",
+//             "updatedAt": "2024-05-31T15:38:03.324Z",
+//             "__v": 0
+//         }
+//     ],
+//     "count": 1
+// }
+
+```
+- If not connected, we have to use mongoose virtual
+
+```js
+const ProductSchema = mongoose.Schema({
+    ...
+},{timestamps:true, toJSON:{virtuals: true}, toObject:{virtuals: true}})
+
+ ProductSchema.virtual('reviews',{
+    ref: 'Review',
+    localFields:'_id',
+    foreignField:'product',
+    justOne:false,
+    // match:{rating:5}
+ })
+
+const products = await Product.find({}).populate({
+        path: "reviews"
+})
+
+```
+- Its a virtual property, so we cannot query to get specific reviews, it gets all the data.
+
+- so for querying, alternative to virtuals we can  
+
+```js
+//controllers/reviewController
+const getSingleProductReviews = async (req, res) => {
+    const { id: productId } = req.params;
+    const reviews = await Review.find({ product: productId });
+    res.status(StatusCodes.OK).json({ reviews, count: reviews.length });
+};
+
+//routes/productRoutes
+router.route("/:id/reviews").get(getSingleProductReviews);
+module.exports = router;
+
+```
+
 ### Mongoose Filter Methods
 
 - Product.deleteMany()
@@ -2041,7 +2119,7 @@ app.use('/api/v1/jobs', authenticateUser, jobsRouter)
 JobSchema = mongoose.Schema({
     ...company, position, status...
     createdBy:{
-    type:mongoose.Types.ObjectId,
+    type:mongoose.Types.ObjectId,// mongoose.Schema.ObjectId
     ref:'User', // model name - collection name
     required:[true, 'Please provide user']
     }
@@ -2218,7 +2296,7 @@ const showStats = async(req, res)=>{
 // app.js
 const fileUpload = require('express-fileupload')
 app.use(express.static('./public'))
-app.use(fileUpload)
+app.use(fileUpload())
 
 
 ```
@@ -2227,7 +2305,8 @@ app.use(fileUpload)
 //models/Product
 image:{
     type:String,
-    required:true
+    required:true,
+    default: "/uploads/example.jpeg",
 }
 ```
 
@@ -2256,7 +2335,7 @@ const uploadProductImageLocal = async(req, res)=>{
     if(productImage.size > maxSize) throw some error...
     const imagePath = path.join(__dirname,'../public/uploads/'+`${productImage.name}`);
     await productImage.mv(imagePath)
-    return res.status(StatusCode.OK).json({image:{src:`/uploads/${productImage.name}`}})
+    return res.status(StatusCodes.OK).json({image:{src:`/uploads/${productImage.name}`}})
     // small path because frontend already points to the server
 
 }
@@ -2601,6 +2680,289 @@ const logout = async (req, res) => {
 
 
 
+### Creation route with multiple links
+
+- We have three schemas users, product which is linked to user in product schema and review which is linked to user and product in review schema.
+
+#### Schema with multiple links
+
+```js
+const mongoose = require("mongoose");
+
+const ReviewSchema = mongoose.Schema(
+    {
+        rating: {
+            type: Number,
+            min: 1,
+            max: 5,
+            required: [true, "Please provide a product review rating"],
+        },
+        title: {
+            type: String,
+            trim: true,
+            required: [true, "Please provide a product review title"],
+            maxlenght: 100,
+        },
+        comment: {
+            type: String,
+            required: [true, "Please provide a product review comment"],
+        },
+        user: {
+            type: mongoose.Types.ObjectId,
+            ref: "User",
+            required: true,
+        },
+        product: {
+            type: mongoose.Types.ObjectId,
+            ref: "Product",
+            required: true,
+        },
+    },
+    { timestamps: true }
+);
+
+// user can leave only on review per product
+// 2 ways indexing and in controller
+// indexing way
+
+ReviewSchema.index({ product: 1, user: 1 }, { unique: true });
+
+module.exports = mongoose.model("Review", ReviewSchema);
+
+
+
+```
+
+- We see below how to create virtuals to create links between product and review from review.
+
+```js
+const createReview = async (req, res) => {
+    const { product: productId } = req.body;
+
+    // Checking whether the product is valid for which we want to give review
+    const isValidProduct = await Product.findOne({ _id: productId });
+
+    if (!isValidProduct) {
+        throw new CustomError.NotFoundError(`No product with id: ${productId}`);
+    }
+
+    // Checking if user has already given review for the product
+    const alreadyubmitted = await Reveiew.findOne({
+        product: productId,
+        user: req.user.userId,
+    });
+
+    if (alreadyubmitted) {
+        throw new CustomError.BadRequestError(
+            `Already submitted review for this product`
+        );
+    }
+
+    req.body.user = req.user.userId; // from auth middleware
+    const review = await Review.create(req.body);
+    res.status(StatusCodes.CREATED).json({ review });
+};
+
+```
+
+#### Removing interrelated models which are not required.
+- What happens if a remove a product, related reviews should also get deleted. we will create a hook.
+
+```js
+ProductSchema.pre("remove", async function (next) {
+    await this.model("Review").deleteMany({ product: this._id });
+});
+
+```
+- Things to take care: since we are using pre hook for remove we need to make sure that we use models remove method to remove the product and trigger the hook instead of using "findOneAndDelete"
+
+#### Aggregate Pipeline with interrelated data.
+
+- scenario: How to update the average rating and number of reviews in the product schema when we remove, create or update review.
+
+- make sure while creating, updating or removing a review we use create, save and remove model methods instead of using findOneAndUpdate or findOneAndRemove because we will be creating post hooks for save and remove(called on create as well) for ReviewSchema
+
+- we can create static method on the instance or on the schema
+
+```js
+// static method on schema instead of instance to create instance one we use ReviewSchema.methods
+ReviewSchema.statics.calcaulateAverageRating = async function (productId) {
+        const result = await this.aggregate([
+        { $match: { product: productId } },
+        {
+            $group: {
+                _id: null,
+                averageRating: { $avg: "$rating" },
+                numOfReviews: { $sum: 1 },
+            },
+        },
+    ]);
+    console.log(result);
+    try {
+        await this.model("Product").findOneAndUpdate(
+            { _id: productId },
+            {
+                averageRating: Math.ceil(result[0]?.averageRating || 0),
+                numOfReviews: result[0]?.numOfReviews || 0,
+            }
+        );
+    } catch (e) {
+        console.log(e);
+    }
+};
+
+ReviewSchema.post("save", async function () {
+    await this.constructor.calcaulateAverageRating(this.product);
+});
+
+ReviewSchema.post("remove", async function () {
+    await this.constructor.calcaulateAverageRating(this.product);
+});
+
+```
+
+- doing aggregation in GUI
+    - goto database and review collection there will be a tab named aggregation click on that then click on create stage and select match in dropdown.
+    - in query add 
+    ```js  
+    {
+        product:ObjectId('665a17a057e34300f04be585')
+    }
+
+    ```
+    - add stage 2 group
+    ```js
+    {
+        _id:null, // If you have something the value is changing you need to pass id but for our use case product id remains same
+        averageRating:{$avg:'$rating'},
+        numOfReviews:{$sum: 1}
+    }
+
+    // grouping on the basis of rating
+    {
+        _id:'$rating', 
+        amount:{$sum:1}
+        
+    }
+    ```
+     - we can export pipeline in node to get the code
+
+
+
+### Utiltiy Functions
+- Some functions that can be created at earlier stages becuase they are used at various places.
+
+```js
+//utils
+//utils/jwt
+
+const jwt = require("jsonwebtoken");
+
+const createJWT = ({ payload }) => {
+    const token = jwt.sign(payload, process.env.JWT_SECRET, {
+        expiresIn: process.env.JWT_LIFETIME,
+    });
+    return token;
+};
+
+const isTokenValid = ({ token }) => {
+    return jwt.verify(token, process.env.JWT_SECRET);
+};
+
+const attachCookiesToResponse = ({ res, user }) => {
+    const token = createJWT({ payload: user });
+    const oneDay = 1000 * 60 * 60 * 24;
+    res.cookie("token", token, {
+        httpOnly: true,
+        expires: new Date(Date.now() + oneDay),
+        secure: process.env.NODE_ENV === "production",
+        signed: true,
+    });
+    // res.status(201).json({ user });
+};
+
+module.exports = {
+    createJWT,
+    isTokenValid,
+    attachCookiesToResponse,
+};
+
+// utils/createTokenUser
+const createTokenUser = (user) => {
+    return { name: user.name, userId: user._id, role: user.role };
+};
+
+module.exports = createTokenUser;
+
+// utils/checkPermissions
+
+const CustomError = require("../errors");
+
+// To check the permission if admin then on he can view other users, no other user can view other user using getSingleUser route and passing id
+const checkPermissions = (requestUser, resourceUserId) => {
+    if (requestUser.role === "admin") return; // continue and send res
+    if (requestUser.userId === resourceUserId.toString()) return; // continue and send res
+    throw new CustomError.UnauthorizedError(
+        "Not authorized to access this user"
+    );
+};
+
+module.exports = checkPermissions;
+
+// middleware/authentication
+
+const CustomError = require("../errors");
+const { isTokenValid } = require("../utils");
+
+const authenticateUser = async (req, res, next) => {
+    const token = req.signedCookies.token;
+
+    if (!token) {
+        throw new CustomError.UnauthenticatedError("Authentication Invalid");
+    }
+    try {
+        const { name, userId, role } = isTokenValid({ token });
+        req.user = { name, userId, role };
+        next();
+    } catch (e) {
+        throw new CustomError.UnauthenticatedError("Authentication Invalid");
+    }
+};
+
+const authorizePermissions = (...rest) => {
+    return (req, res, next) => {
+        if (!rest.includes(req.user.role)) {
+            throw new CustomError.UnauthorizedError(
+                "Unauthorized to access this route"
+            );
+        }
+        next();
+    };
+};
+
+module.exports = {
+    authenticateUser,
+    authorizePermissions,
+};
+
+// models/userModel
+
+
+UserSchema.pre("save", async function () {
+    // console.log(this.modifiedPaths());
+    // console.log(this.isModified("name"));
+    if (!this.isModified("password")) return; // if you use save for update it hashes password twice
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+});
+
+UserSchema.methods.comparePassword = async function (candidatePassword) {
+    const isMatch = await bcrypt.compare(candidatePassword, this.password);
+    return isMatch;
+};
+
+```
+
 - delete later
 ```js
 // index.js
@@ -2681,8 +3043,5 @@ app.post('/login', async(req, res)=>{
 
 
 app.listen(3000, console.log(`Server Listening at http://localhost:3000/`));
-
-
-
 
 ```
