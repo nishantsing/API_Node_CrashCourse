@@ -1897,6 +1897,7 @@ email:{
 - Hash Password (with bcryptjs)
 ```js
 // components/user.js
+// async await way of using it
 const register = async(req, res)=>{
     const { name, email, password} = req.body
     const salt = await bcrypt.genSalt(10);
@@ -1906,6 +1907,21 @@ const register = async(req, res)=>{
     res.status(201).json({user})
 }
 ```
+
+
+```js
+// callback way of doing it
+bcrypt.genSalt(10, function(err, salt) {
+    bcrypt.hash(password, salt, function(err, hash) {
+        // Store hash in your password DB.
+        const tempUser = {name, email, password:hashedPassword} 
+        const user = await User.create({...tempUser})
+        res.status(201).json({user})
+    });
+});
+```
+
+- can also use promises to do the same
 
 - create and save triggers pre and post save hooks
 
@@ -2580,5 +2596,93 @@ const logout = async (req, res) => {
     });
     res.status(StatusCodes.OK).json({ msg: "user logged out" });
 };
+
+```
+
+
+
+- delete later
+```js
+// index.js
+const userData = require('../model/users.json')
+const postData = require('../model/posts.json')
+
+
+console.log(userData);
+console.log(postData);
+
+const express = require('express');
+const app = express();
+
+const bcrypt = require('bcrypt')
+const jwt = require('jsonwebtoken')
+// const crypto = require('crypto')
+//middlewares
+app.use(express.json()) // to get json data in req.body
+
+app.get('/posts', function(req,res){
+   res.json(postData)
+});
+
+app.get('/users', function(req,res){
+   res.json({userData})
+})
+
+app.post('/register', async function(req, res){
+   const {name, password} = req.body
+   const hashedPassword = await bcrypt.hash(password, 10)
+   const user = {name, password: hashedPassword, id: Math.floor(Math.random() * 100 + 4)}
+   userData[`user${user.id}`] = user
+
+
+   // generate JWT Token
+   const token = jwt.sign({name}, "secretkey")
+
+   res.status(201).json({user, token})
+})
+
+app.post('/login', async(req, res)=>{
+   try{
+      const {name ,password} = req.body
+
+      if(!name || ! password){
+         throw new Error('please enter name and password')
+      }
+    
+      let ourUser = null;
+      for(let user in userData){
+         let singleUser =  userData[user]
+         if(singleUser.name === name){
+            ourUser = singleUser
+         }
+      }
+      console.log(ourUser)
+      if(!ourUser){
+         throw new Error('Please enter correct credentials')
+      }
+   
+      const isPasswordCorrect = await bcrypt.compare(password, ourUser.password);
+   
+      if(!isPasswordCorrect){
+         throw new Error('Please enter correct credentials')
+      }
+      console.log('Successfully verified credentials')
+      
+      // generate JWT Token
+      const token = jwt.sign({name}, "secretkey")
+
+      res.status(200).json({user: {name: ourUser.name, id:ourUser.id}, token})
+   }catch(e){
+      console.log(e)
+   }
+  
+})
+
+
+
+app.listen(3000, console.log(`Server Listening at http://localhost:3000/`));
+
+
+
 
 ```
