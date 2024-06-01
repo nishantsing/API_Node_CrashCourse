@@ -1281,6 +1281,7 @@ const ProductSchema = new mongoose.Schema({
         type: Boolean,
         default: false,
     },
+    
     rating: {
         type: Number,
         default: 4.5,
@@ -1301,6 +1302,215 @@ const ProductSchema = new mongoose.Schema({
 
 module.exports = mongoose.model("Product", ProductSchema);
 ```
+
+- declaring array of string in schema
+```js
+ colors: {
+            type: [String],
+            // default: ["#222"],
+            required: true,
+        },
+```
+
+- creating a schema for a property in some schema
+
+```js
+const { required } = require("joi");
+const mongoose = require("mongoose");
+
+const SingleOrderItemSchema = mongoose.Schema({
+    name: { type: String, required: true },
+    imgage: { type: String, required: true },
+    price: { type: Number, required: true },
+    amount: { type: Number, required: true },
+    product: {
+        type: mongoose.Schema.ObjectId,
+        ref: "Product",
+        required: true,
+    },
+});
+
+const OrderSchema = mongoose.Schema(
+    {
+        tax: {
+            type: Number,
+            required: true,
+        },
+        shippingFee: {
+            type: Number,
+            required: true,
+        },
+        subtotal: {
+            type: Number,
+            required: true,
+        },
+        total: {
+            type: Number,
+            required: true,
+        },
+        orderItems: [SingleOrderItemSchema],
+        status: {
+            type: String,
+            enum: ["pending", "failed", "paid", "delivered", "canceled"],
+            default: "pending",
+        },
+        user: {
+            type: mongoose.Schema.ObjectId,
+            ref: "User",
+            required: true,
+        },
+        clientSecret: {
+            type: String,
+            required: true,
+        },
+        paymentIntentId: {
+            type: String,
+        },
+    },
+    { timestamps: true }
+);
+
+module.exports = mongoose.model("Order", OrderSchema);
+
+
+
+```
+
+- Order Controller
+```js
+const Order = require("../models/OrderModel");
+const Product = require("../models/ProductModel");
+
+const { StatusCodes } = require("http-status-codes");
+const CustomError = require("../errors");
+const { checkPermissions } = require("../utils");
+
+const fakeStripeAPI = async ({ amount, currency }) => {
+    const client_secret = "someRandomValue";
+    return { client_secret, amount };
+};
+
+const createOrder = async (req, res) => {
+    const { items: cartItems, tax, shippingFee } = req.body;
+    if (!cartItems || cartItems.length < 1) {
+        throw new CustomError.BadRequestError("No cart items provided");
+    }
+    if (!tax || !shippingFee) {
+        throw new CustomError.BadRequestError(
+            "Please provide tax and shipping fee"
+        );
+    }
+
+    let orderItems = [];
+    let subtotal = 0;
+
+    for (const item of cartItems) {
+        const dbProduct = await Product.findOne({ _id: item.product });
+        if (!dbProduct) {
+            throw new CustomError.NotFoundError(
+                `No product with id: ${item.product}`
+            );
+        }
+        const { name, price, image, _id } = dbProduct;
+        const singleOrderItem = {
+            amount: item.amount,
+            name,
+            price,
+            image,
+            product: _id,
+        };
+        orderItems = [...orderItems, singleOrderItem];
+
+        subtotal += item.amount * price;
+    }
+    const total = tax + shippingFee + subtotal;
+
+    // get client secret
+    // you will be using real stripe API
+    const paymentItent = await fakeStripeAPI({
+        amount: total,
+        currency: "usd",
+    });
+
+    const order = await Order.create({
+        orderItems,
+        total,
+        subtotal,
+        tax,
+        shippingFee,
+        clientSecret: paymentItent.client_secret,
+        user: req.user.userId,
+    });
+
+    res.status(StatusCodes.CREATED).json({
+        order,
+        clientSecret: order.clientSecret,
+    });
+};
+
+//only allowed to admin
+const getAllOrders = async (req, res) => {
+    const orders = await Order.find({});
+    res.status(StatusCodes.OK).json({
+        orders,
+        count: orders.length,
+    });
+};
+
+// allowed to everyone but can see theirs only
+const getSingleOrder = async (req, res) => {
+    const { id: orderId } = req.params;
+    const order = await Order.findOne({ _id: orderId });
+
+    if (!order) {
+        throw new CustomError.NotFoundError(`No order with id: ${orderId}`);
+    }
+
+    checkPermissions(req.user, order.user);
+    res.status(StatusCodes.OK).json({
+        order,
+    });
+};
+
+// get all the order associated with one user
+const getCurrentUserOrders = async (req, res) => {
+    const orders = await Order.find({ user: req.user.userId });
+    res.status(StatusCodes.OK).json({
+        orders,
+        count: orders.length,
+    });
+};
+const updateOrder = async (req, res) => {
+    const { id: orderId } = req.params;
+    const { paymentIntentId } = req.body;
+    const order = await Order.findOne({ _id: orderId });
+
+    if (!order) {
+        throw new CustomError.NotFoundError(`No order with id: ${orderId}`);
+    }
+
+    checkPermissions(req.user, order.user);
+
+    order.paymentIntentId = paymentIntentId;
+    order.status = "paid";
+
+    await order.save();
+    res.status(StatusCodes.OK).json({
+        order,
+    });
+};
+
+module.exports = {
+    getAllOrders,
+    getSingleOrder,
+    getCurrentUserOrders,
+    createOrder,
+    updateOrder,
+};
+
+
+```
+
 - Automating adding to database
 ```js
 // product.json which will have data
@@ -1833,7 +2043,7 @@ const errorHandlerMiddleware = (err, req, res, next) => {
 
 ## Security
 
-- npm packages helmet, cors, xss-clean, express-rate-limit
+- npm packages helmet, cors, xss-clean, express-rate-limit, express-mongo-sanitize
 
 ```js
 
@@ -1847,9 +2057,9 @@ app.use(rateLimiter({
 app.use(helmet())
 app.use(cors()) // no need if you just want your express frontend to use it. Needed if you want some other url to access the api
 app.use(xss())
-
-
+app.use(mongoSanitize())
 ```
+
 
 - Rate limiter for simgle route
 ```js
@@ -1873,11 +2083,38 @@ router.post('/login', apiLimiter, login);
 - sign in to heroku
 - install heroku cli
 - heroku -v
-- package.json changes for engine and start
+- package.json "start":"node app.js"
+- package.json changes for engines and start
+- setup procfile "web: node app.js"
+- remove existing git repo
+    - rm -rf .git
 
 - git and heroku push
-- setting env variables in heroku
+    - make sure to have .gitignore
+    - git init, git add ., git commit -m "initial commit"
+    - herkou login
+    - heroku create "App Name"
+    - git remote -v
+- setting env variables in heroku GUI
+- git push heroku master/main
 - restarting dynamo
+
+- once deployed to heroku we dont need some stuff.
+    - morgan package
+    - docs.json and relace local URL with the production URL
+    - docgen uses inline js but helmet blocks that creating issues.
+        - from docgen index.html in public separate html and inline script tag to a separate file browser-app.js and refer it in the index.html file
+    - pushing updates to heroku
+        - git add ., git commit -m "added new fixes"
+        - git push heroku master/ main
+
+### Deployig to Render
+    - remove existing git repo
+    - setup new one in git
+    - setup new repo in github
+    - push everything to github
+    - goto render new web service latest service
+    - fill advance .env file
 
 ## Swagger API Documentation
 - postman if we publish the docs it gives some random url
@@ -1907,6 +2144,13 @@ app.use('/api-docs', swaggerUI.serve, swaggerUI.setup(swaggerDocument))
 
 ```
 - on local you can see basic setup but there would be bunch of errors
+
+## Docgen Documentation
+- install docgen
+    - export postman collection(json)
+    - {{URL}} - localhost, later on heroku one
+    - docgen build -i filename.json -o index.html
+    - put index.html generated into public one
 
 ## Github Page - Deploying your code
 - only supports static file and doesnt support any server side languages
@@ -2119,7 +2363,7 @@ app.use('/api/v1/jobs', authenticateUser, jobsRouter)
 JobSchema = mongoose.Schema({
     ...company, position, status...
     createdBy:{
-    type:mongoose.Types.ObjectId,// mongoose.Schema.ObjectId
+    type:mongoose.Types.ObjectId,// mongoose.Schema.ObjectId - mostly use this as its used for foreign key purposes
     ref:'User', // model name - collection name
     required:[true, 'Please provide user']
     }
@@ -2152,6 +2396,7 @@ const createJob = async(req,res)=>{
 - cors
 - xss-clean
 - express-rate-limit
+- express-mongo-sanitize
 
 ### Swagger UI
 
