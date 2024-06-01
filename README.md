@@ -2923,6 +2923,427 @@ const logout = async (req, res) => {
 
 ```
 
+### More on Auth(email verification, refresh token, Reseting password)
+- Big picture
+    - Since we are asking to verify email, we are sending verificationToken to email somehow
+    - add one more route for verifyEmail
+- Things to keep in my mind, 
+    - once we register dont send jwt token with response as we want to allow user to login only after email verification.
+    - Also dont send the jwt token after login as well, if user tries to login without verifying we dont allow the user to login.
+
+- adding 3 properties to user Model
+
+```js
+user, email, password, role
+verificationToken: String,
+isVerified:{
+    type:Boolean,
+    default:false
+},
+verified:Date
+``` 
+
+- auth controller
+    - register
+    ```js
+
+    const crypto = require('crypto')
+        <!-- code... remove the jwt creation and sending part from the code -->
+        const verificationToken = crypto.randomBytes(40).toString('hex')// unique token for each user
+        const user = await User.create({name, email, password, role, verificationToken})
+        res.status(StatusCodes.CREATED).json({msg: 'Success! Please check your email to verify account'})
+    ```
+    - login
+    ```js
+        <!-- code... let the jwt creation part there but before that add this check -->
+        if(!user.isVerified){
+            throw new error...
+        } 
+
+
+    ```
+
+- authRoute
+router.post('/verify-email', verifyEmail)
+- adding verifyEmail controller in authController
+
+```js
+const verifyEmail = async(req, res)=>{
+    const {verificationToken, email} = req.body
+
+    const user = await User.findOne({email});
+    
+    if(!user){
+        throw new error...
+    }
+
+    if(user.verificationToken !== verificationToken){
+        throw new error...
+    }
+
+    user.isVerified = true,
+    user.verified = Date.now();
+    user.verificationToken = ''
+
+    await user.save()
+    res.status(StatusCodes.OK).json({msg: 'Email Verified'})
+}
+```
+
+- Sending Emails
+    - Ethereal and nodemailer npm package
+    - create files(nodemailerConfig.js, sendEmail, sendResetPassword, sendVerificationEmail) in utils
+
+    - add these in index file of util  for easay imports
+    -nodemailerConfig
+
+    ```js
+    // setup all the variables in .env
+    module.exports = {
+            host: "smtp.ethereal.email",
+            port: 587,
+            secure: false, // Use `true` for port 465, `false` for all other ports
+            auth: {
+                user: "maddison53@ethereal.email",
+                pass: "jn7jnAPss4f63QBp6D",
+            },
+        }
+
+    ```
+    - In send email
+    ```js   
+    const nodemailer = require('nodemailer')
+    const nodemailerConfig = require('nodemailerConfig')
+
+    const sendEmail = async({to, subject, html})=>{
+        let testAccount = await nodemailer.createTestAccount();
+
+        
+        const transporter = nodemailer.createTransport(nodemailerConfig);
+
+        // setup all the variables in .env
+        return transporter.sendMail({
+            from: '"Maddison Foo Koch 👻" <maddison53@ethereal.email>', // sender address
+            to,
+            subject,
+            html
+        });
+    }
+
+    module.exports = sendEmail
+
+    // utils/sendVerificationEmail
+    const sendEmail = require('./sendEmail')
+
+    const sendVerificationEmail = async({name, email, verificationToken, origin})=>{
+
+        const verifyEmail = `${origin}/user/verify-email?token=${verificationToken}&email=${email}`
+        const message = `<p>Please confirm your email by clicking on the following link : <a href="${verifyEmail}">Verify Email</a> </p>`
+        return sendEmail({to:email, subject:'Email confirmation', html:`<h4> Hello, ${name}</h4>${message}`} )
+    }
+
+    module.exports = sendVerificationEmail
+
+    <!-- authController -->
+    const sendEmail = require('../utils/sendEmail')
+    const {sendVerificationEmail} = require('../utils')
+
+
+    <!-- code... remove the jwt creation and sending part from the code -->
+    const verificationToken = crypto.randomBytes(40).toString('hex')// unique token for each user
+    const user = await User.create({name, email, password, role, verificationToken})
+    const origin = 'http://localhost:3000'
+
+    <!-- const tempOrigin = req.get('origin')
+    const protocol = req.protocol;
+    const host = req.get('host')
+    const forwardedHost = req.get('x-forwarded-host')
+    const forwardedProtocol = req.get('x-forwarded-proto') -->
+
+
+
+    await sendVerificationEmail({name:user.name, email:user.email, verificationToken:user.verificationToken, origin})
+    res.status(StatusCodes.CREATED).json({msg: 'Success! Please check your email to verify account'})
+
+
+    ```
+- refresh token
+    access token - short lifespan
+    refresh token
+    - create token model
+    ```js
+    {
+        refreshToken: {type:String, required:true}
+        ip: {type:String, required:true}
+        userAgent: {type:String, required:true}
+        isValid: {type:Boolean, default:true}
+        user:{
+            type:mongoose.Types.ObjectId,
+            ref:'User',
+            required:true
+        }
+    }, {timestamps:true}
+
+    // authController login controller
+    const tokenUser = createTokenUser(user);
+
+    //create refresh token
+    let refreshToken = ''
+    //check for existing token
+
+    const existingToken = await Token.findOne({ user: user._id });
+
+    if (existingToken) {
+        const { isValid } = existingToken;
+        if (!isValid) {
+        throw new CustomError.UnauthenticatedError('Invalid Credentials');
+        }
+        refreshToken = existingToken.refreshToken;
+        attachCookiesToResponse({ res, user: tokenUser, refreshToken });
+        res.status(StatusCodes.OK).json({ user: tokenUser });
+        return;
+    }
+
+    refreshToken = crypto.randomBytes(40).toString('hex')
+
+    const userAgent = req.headers['user-agent']
+    const ip = req.ip
+
+    const userToken = {refreshToken, ip, userAgent, user: user._id}
+
+    // invoking schema Token create
+    await Token.create(userToken)
+
+    attachCookiesToResponse({res, user: tokenUser, refreshToken})
+
+
+    res.status(StatusCodes.OK).json({user:tokenUser, token})
+
+    //jwt - createJWT 
+
+    const createJWT = ({payload})=>{
+        const token = jwt.sign(payload, process.env.JWT_SECRET); // remove expires
+        return token
+    }
+
+    const isTokenValid = (token) => jwt.verify(token, process.env.JWT_SECRET);
+    //jwt - attachCookiesToResponse
+
+    const attachCookiesToResponse = ({res, user, refreshToken})=>{
+         const accessTokenJWT = createJWT({payload:{user}})
+         const refreshTokenJWT = createJWT({payload:{user, refreshToken}})
+
+         const oneDay = 1000 * 60 * 60 * 24;
+        const longerExp = 1000 * 60 * 60 * 24 * 30;
+
+        res.cookie('accessToken', accessTokenJWT, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            signed: true,
+            expires: new Date(Date.now() + oneDay),
+            //maxAge:1000
+        });
+
+        res.cookie('refreshToken', refreshTokenJWT, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            signed: true,
+            expires: new Date(Date.now() + longerExp),
+        });
+    }
+    // authentication middleware
+
+    const authenticateUser = async (req, res, next) => {
+    const { refreshToken, accessToken } = req.signedCookies;
+
+    try {
+        if (accessToken) {
+        const payload = isTokenValid(accessToken);
+        req.user = payload.user;
+        return next();
+        }
+        const payload = isTokenValid(refreshToken);
+
+        const existingToken = await Token.findOne({
+        user: payload.user.userId,
+        refreshToken: payload.refreshToken,
+        });
+
+        if (!existingToken || !existingToken?.isValid) {
+        throw new CustomError.UnauthenticatedError('Authentication Invalid');
+        }
+
+        attachCookiesToResponse({
+        res,
+        user: payload.user,
+        refreshToken: existingToken.refreshToken,
+        });
+
+        req.user = payload.user;
+        next();
+    } catch (error) {
+        throw new CustomError.UnauthenticatedError('Authentication Invalid');
+    }
+    };
+    //authRoute
+    router.delete('/logout', authenticateUser, logout);
+
+    //authController logout 
+    const logout = async (req, res) => {
+    await Token.findOneAndDelete({ user: req.user.userId });
+
+    res.cookie('accessToken', 'logout', {
+        httpOnly: true,
+        expires: new Date(Date.now()),
+    });
+    res.cookie('refreshToken', 'logout', {
+        httpOnly: true,
+        expires: new Date(Date.now()),
+    });
+    res.status(StatusCodes.OK).json({ msg: 'user logged out!' });
+    };
+    ```
+
+- Forget Password and Reset Password
+    - Update user model
+    ```js
+    const UserSchema = new mongoose.Schema({
+    name: {
+        type: String,
+        required: [true, 'Please provide name'],
+        minlength: 3,
+        maxlength: 50,
+    },
+    email: {
+        type: String,
+        unique: true,
+        required: [true, 'Please provide email'],
+        validate: {
+        validator: validator.isEmail,
+        message: 'Please provide valid email',
+        },
+    },
+    password: {
+        type: String,
+        required: [true, 'Please provide password'],
+        minlength: 6,
+    },
+    role: {
+        type: String,
+        enum: ['admin', 'user'],
+        default: 'user',
+    },
+    verificationToken: String,
+    isVerified: {
+        type: Boolean,
+        default: false,
+    },
+    verified: Date,
+    passwordToken: {
+        type: String,
+    },
+    passwordTokenExpirationDate: {
+        type: Date,
+    },
+    });
+    ```
+    - authRoutes
+    ```js
+    router.post('/reset-password', resetPassword);
+    router.post('/forgot-password', forgotPassword);
+    ```
+    - utils/sendResetPasswordEmail
+    ```js
+    const sendEmail = require('./sendEmail');
+
+    const sendResetPassswordEmail = async ({ name, email, token, origin }) => {
+    const resetURL = `${origin}/user/reset-password?token=${token}&email=${email}`;
+    const message = `<p>Please reset password by clicking on the following link : 
+    <a href="${resetURL}">Reset Password</a></p>`;
+
+    return sendEmail({
+        to: email,
+        subject: 'Reset Password',
+        html: `<h4>Hello, ${name}</h4>
+    ${message}
+    `,
+    });
+    };
+
+    module.exports = sendResetPassswordEmail;
+
+    ```
+    - utils create Hash
+
+    ```js
+    const crypto = require('crypto');
+
+    const hashString = (string) =>
+    crypto.createHash('md5').update(string).digest('hex');
+
+    module.exports = hashString;
+
+    ```
+
+    - authController
+    ```js
+    const forgotPassword = async (req, res) => {
+    const { email } = req.body;
+    if (!email) {
+        throw new CustomError.BadRequestError('Please provide valid email');
+    }
+
+    const user = await User.findOne({ email });
+
+    if (user) {
+        const passwordToken = crypto.randomBytes(70).toString('hex');
+        // send email
+        const origin = 'http://localhost:3000';
+        await sendResetPasswordEmail({
+        name: user.name,
+        email: user.email,
+        token: passwordToken,
+        origin,
+        });
+
+        const tenMinutes = 1000 * 60 * 10;
+        const passwordTokenExpirationDate = new Date(Date.now() + tenMinutes);
+
+        user.passwordToken = createHash(passwordToken);
+        user.passwordTokenExpirationDate = passwordTokenExpirationDate;
+        await user.save();
+    }
+
+    res
+        .status(StatusCodes.OK)
+        .json({ msg: 'Please check your email for reset password link' });
+    };
+    const resetPassword = async (req, res) => {
+    const { token, email, password } = req.body;
+    if (!token || !email || !password) {
+        throw new CustomError.BadRequestError('Please provide all values');
+    }
+    const user = await User.findOne({ email });
+
+    if (user) {
+        const currentDate = new Date();
+
+        if (
+        user.passwordToken === createHash(token) &&
+        user.passwordTokenExpirationDate > currentDate
+        ) {
+        user.password = password;
+        user.passwordToken = null;
+        user.passwordTokenExpirationDate = null;
+        await user.save();
+        }
+    }
+
+    res.send('reset password');
+    };
+
+    ```
+
 
 
 ### Creation route with multiple links
