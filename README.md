@@ -1,8 +1,8 @@
 # Node Crash Course
 
-[Node Crash Course by Traversy Media](https://youtu.be/32M1al-Y6Ag)
-[Paid - Node.js API Masterclass by Traversy](https://www.udemy.com/course/nodejs-api-masterclass/)
-[NodeJS Tutorial and Projects Course - John Smilga](https://www.udemy.com/course/nodejs-tutorial-and-projects-course/?couponCode=LETSLEARNNOWPP)
+- [Node Crash Course by Traversy Media](https://youtu.be/32M1al-Y6Ag)
+- [Paid - Node.js API Masterclass by Traversy](https://www.udemy.com/course/nodejs-api-masterclass/)
+- [NodeJS Tutorial and Projects Course - John Smilga](https://www.udemy.com/course/nodejs-tutorial-and-projects-course/?couponCode=LETSLEARNNOWPP)
 
 - Node is a runntime engine that runs js.
 - V8 Js Engine(build in C++)
