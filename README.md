@@ -2116,6 +2116,13 @@ router.post('/login', apiLimiter, login);
     - goto render new web service latest service
     - fill advance .env file
 
+### Deploying to github pages(only static pages not backend)
+### Deploying to Netlify or Vercel
+### Deploying to digital ocean
+    - App platform
+    - github
+    - select repos
+    
 ## Swagger API Documentation
 - postman if we publish the docs it gives some random url
 - collection(make sure urls are all the same in all the requests) - export
