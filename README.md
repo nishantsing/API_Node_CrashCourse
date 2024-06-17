@@ -14,6 +14,15 @@
 - Not good for CPU-intensive operations(heavy computations)
 - other competitors(deno, bun)
 
+- other languages
+    - python, ruby was prototyping and development
+    - java, C# building large scale enterprise level application
+    - go - performance critical and cuncurrent
+ - DSA
+- Design Patterns
+- Databases(sql, mongodb)
+- Languages Frameworks(django, flask, spring boot, express, asp.net core, Gin, Ruby on rails)
+
 
 ```js
 npm init -y
@@ -290,6 +299,12 @@ body - raw -json
     ```
     - goto create job route in postman
     - In Authorization tab - Type Bearer instead of inherit - Token - {{accessToken}}
+- collection - overview - view complete documentation
+    - postbot at bottom (add documentation) or add test for request(or chai, jest)
+ 
+- {{$randomcity}} and other variables can be created in body
+
+- share the collection or download, export it as well.
     
 
 ##### fs module
@@ -671,12 +686,79 @@ app.use(logger);
 
 ```
 
-- npm package morgan can be used for logger
+##### Morgan(logging) and Winston (and winston-mongodb if you want to store the logs in db)
+- [Hitesh ChaiCode docs node logger](https://docs.chaicode.com/advance-node-logger/)
+- npm package morgan winston can be used for logger
 ```js
 const morgan = require("morgan");
 app.use(morgan("tiny"));
 
 ```
+
+
+```js
+import { createLogger, format, transports } from 'winston';
+const { combine, timestamp, json, colorize } = format;
+
+// Custom format for console logging with colors
+const consoleLogFormat = format.combine(
+  format.colorize(),
+  format.printf(({ level, message, timestamp }) => {
+    return `${level}: ${message}`;
+  })
+);
+
+// Create a Winston logger
+const logger = createLogger({
+  level: 'info',
+  format: combine(
+    colorize(),
+    timestamp(),
+    json()
+  ),
+  transports: [
+    new transports.Console({
+      format: consoleLogFormat
+    }),
+    new transports.File({ filename: 'app.log' })
+  ],
+});
+
+export default logger;
+
+```
+
+    - usage
+    ```js
+    import logger from './logger';
+    import morgan from 'morgan';
+    
+    const morganFormat = ':method :url :status :response-time ms';
+    
+    app.use(morgan(morganFormat, {
+      stream: {
+        write: (message) => {
+          const logObject = {
+            method: message.split(' ')[0],
+            url: message.split(' ')[1],
+            status: message.split(' ')[2],
+            responseTime: message.split(' ')[3],
+    
+          };
+          logger.info(JSON.stringify(logObject));
+        }
+      }
+    }));
+
+
+    // logger
+    import logger from './logger';
+
+    logger.info('This is an info message');
+    logger.error('This is an error message');
+    logger.warn('This is a warning message');
+    logger.debug('This is a debug message');
+    ```
 
 #### custom error handling in express
 
@@ -2119,9 +2201,12 @@ router.post('/login', apiLimiter, login);
 ### Deploying to github pages(only static pages not backend)
 ### Deploying to Netlify or Vercel
 ### Deploying to digital ocean
+    - Things to keep in mind
+        - environment variables(port, database credentials, ai keys) - dotenv
     - App platform
     - github
     - select repos
+    - app settings - env variable(dont need to set PORT here)
     
 ## Swagger API Documentation
 - postman if we publish the docs it gives some random url
