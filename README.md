@@ -37,6 +37,16 @@ console.log(process)
 
 - setInterval, setTimeout, fetch they are not part of js, they are part of web API in the browser but also available in node js through global object.
 
+## Designing database ER diagrams(Eraser)
+
+- Todo
+- Library Management
+- Hospital Management
+- E-commerce
+- Content Management System
+
+- try designing them in eraser.
+
 ## REST API
 
 - app.get('/api/v1/posts') - get all the posts
