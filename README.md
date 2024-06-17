@@ -1,5 +1,7 @@
 # Node Crash Course
 
+- Avoid as many dependency as much as possible do them in vanilla js, because dependencies in js ecosystem has lot of other dependencies and can have vulnerabilities.
+  
 - [Node Crash Course by Traversy Media](https://youtu.be/32M1al-Y6Ag)
 - [Paid - Node.js API Masterclass by Traversy](https://www.udemy.com/course/nodejs-api-masterclass/)
 - [NodeJS Tutorial and Projects Course - John Smilga](https://www.udemy.com/course/nodejs-tutorial-and-projects-course/?couponCode=LETSLEARNNOWPP)
@@ -2159,7 +2161,15 @@ router.post('/login', apiLimiter, login);
 
 ```
 
-## Heroku Deployment (Vercel, Netlify, Firebase Hosting, AWS Free tier, Render, Cyclic, Deta)
+## Services
+
+- Cloudnairy for images.
+- clerk for authentication.
+- sentry for error tracking and alerting.
+- zeta for database.
+
+## Heroku Deployment (Vercel, Netlify, Firebase Hosting, AWS Free tier, Render, Cyclic, Deta, cloudflare) 
+ 
 [Herouku Docs for deploying nodejs](https://devcenter.heroku.com/articles/deploying-nodejs)
 - In monodb atlas allow access from anywhere.
 - sign in to heroku
