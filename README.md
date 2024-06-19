@@ -3926,4 +3926,39 @@ tweets.owner - users.id
 
 ## Project Structure
 
-- [YT - Backend Project Structure - Hitesh](https://youtu.be/eDHl26DWrk4)
+[YT - Backend Project Structure - Hitesh](https://youtu.be/eDHl26DWrk4)
+
+src/index.js
+cd src
+mkdir controllers db middlewares models routes utils
+touch app.js index.js constants.js .env .env.sample readme.md
+touch db/index.js
+cd models
+touch comment.models.js like.models.js playlist.models.js subscription.models.js tweet.models.js  user.models.js  video.models.js
+
+
+#### prettier dev dependency
+
+.prettierignore
+```
+/.vscode
+/node_modules
+./dist
+
+*.env
+.env
+.env.*
+```
+
+.prettierrc
+```
+{
+  "singleQuote":false,
+  "bracketSpacing":true,
+  "tabWidth":2,
+  "trailingComma":"es5",
+  "semi":true
+}
+
+```
+
