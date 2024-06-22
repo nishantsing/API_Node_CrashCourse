@@ -1,0 +1,23 @@
+{
+    "productName": "customers",
+    "collectionName": "Customer",
+    "schema": {
+        "name": {
+            "type": "String",
+            "required": true
+        },
+        "industry": "String",
+        "orders":[
+            {
+                "description":"String",
+                "amountInRs":"Number"
+            }
+        ]
+    },
+    "nestedAttributes":"orders",
+    "routeStructure": "/api/v1/customers",
+    "routeStructureNestedAttributes": {
+        "attribute1":"/api/v1/orders"
+    },
+    "_comments": ["productName should be plural","nestedAttributes create it as an array or object to make it more generalized"]
+}
