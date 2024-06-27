@@ -3827,15 +3827,44 @@ app.listen(3000, console.log(`Server Listening at http://localhost:3000/`));
 ## 10 ways to deploy your website
 
 - React (without SSR)
-  - Vercel
-  - Virtual Machines
-  - CDNs + Object store
-- NextJS/NodeJs/Golang
-  - Cheaper serverless
-  - Virtual Machines
-  - self hosted in your home lab
-  - Autoscaled servers
+    - Vercel/Netlify (PaaS) - CD(COntinuous deploy) as we change our code on github
+        - npm run build - dist -push all to github - deploy
+        - connect domains -DNS - CNAME add domain in vercel as well 
+    - Virtual Machines
+        - AWS, GCP, Vultr, Digital Ocean - public IP(since we dont have this we cannot deploy on our machine - can be bypassed using tunneling)
+      - Get a VM
+          - EC2 - create machine -launch instance
+      - Install Node on machine
+          - Connect to instance and install node
+      - copy over the source code
+          - git clone the repo
+      - start your app
+          - npm run build
+          - serve index.html file in dist (nginx as reverse proxy or serve from npm)
+          - connect domains -DNS - a add IP
+          - certbot to get ssl certificate
+  - CDNs + Object store (Ideal Way) caching
+      - Videos, images, static website(something which is not user dependent)
+      - vercel expensive and EC2 doesn't scale
+      - serving static files, big videos is a use case of CDN
+      - cloudfront - AWS, S3 (bucket)- AWS, R2 - Cloudflare
+      - Sign up for bunny
+      - Create an object store (storage zone)
+          - take files in dist and upload them in OS
+      - create a CDN (pull zone)
+      - connect CDN to the OS
+      - connect domain to CDN
+          - add custom home page
+- NextJS (can create routes)/NodeJs/Golang
+    -Netlify/ Vercel
+    - Cloudflare Docs
+        - signin
+        - worker and pages
+        - npm create cloudflare@latest <appname> -- --framework=next
+    - Virtual Machines
+    - self hosted in your home lab
+    - Autoscaled servers
 - Dockerised app
-  - Kubernetes cluster
-  - Decenteralised compute
-  - open source vercel - coolify
+    - Kubernetes cluster
+    - Decenteralised compute
+    - open source vercel - coolify
