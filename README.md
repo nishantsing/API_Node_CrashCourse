@@ -3824,4 +3824,18 @@ app.listen(3000, console.log(`Server Listening at http://localhost:3000/`));
 
 ```
 
+## 10 ways to deploy your website
 
+- React (without SSR)
+  - Vercel
+  - Virtual Machines
+  - CDNs + Object store
+- NextJS/NodeJs/Golang
+  - Cheaper serverless
+  - Virtual Machines
+  - self hosted in your home lab
+  - Autoscaled servers
+- Dockerised app
+  - Kubernetes cluster
+  - Decenteralised compute
+  - open source vercel - coolify
