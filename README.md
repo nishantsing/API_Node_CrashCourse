@@ -3863,8 +3863,50 @@ app.listen(3000, console.log(`Server Listening at http://localhost:3000/`));
         - npm create cloudflare@latest <appname> -- --framework=next
     - Virtual Machines
     - self hosted in your home lab
+          - cloudflare tunnel
     - Autoscaled servers
+          - ASG(AWS) - EBS(handles below 5 steps internally) - zip
+              - Staring an instance
+              - Image
+              - Launch Template
+              - Start Script
+              - ASG, LB
+      
 - Dockerised app
-    - Kubernetes cluster
-    - Decenteralised compute
+    - Create Docker File
+    ```js
+    FROM node:20-alpine
+    
+    WORKDIR /app
+    COPY package.json .
+    COPY package-lock.json .
+    
+    RUN npm install
+    
+    COPY ..
+    RUN npm run build
+    
+    EXPOSE 3000
+    
+    CMD ["npm", "run", "start"]
+    ```
+    - docker build -t <image-name> .
+    - docker run -p 3000:3000 <image-name>
+    - [deploy docker images publicly](https://hub.docker.com/)
+    - docker push <image-name>
+    - Kubernetes cluster(k8s)
+        - Deployment
+        - Service(Ingress)
+        - Steps
+            - Create a k8s cluster
+                - [Kubernetes Cluster](https://www.vultr.com) - download config
+                - [Kubectl](https://kubernetes.io/docs/reference/kubectl/kubectl/) -add config 
+            - create the deployment
+            - create a service-> LB
+            - add a CNAME to the LB
+    - Decenteralised compute - akash.net
     - open source vercel - coolify
+        - 
+ 
+
+
