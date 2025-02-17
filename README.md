@@ -1790,7 +1790,7 @@ const products = await query
 ```
 
 ### Mongoose skip and limit filter
-
+- [Let's Master the PAGINATION 🔥| Api Pagination | React Pagination](https://youtu.be/4NQmYtfR4Q4)
 ```js
 //{{URL}}/products?sort=-name,price&limit=10&page=2
 const {featured, company, name, sort, select} = req.query
