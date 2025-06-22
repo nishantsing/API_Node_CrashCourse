@@ -49,3 +49,24 @@ export const db = drizzle(sql, { schema });
 // The DATABASE_URL you get from neon for postgress its similar to mongodb atlas for mongodb
 ```
 
+#### Connecting local to remote neon
+
+```js
+drizzle.config.js
+
+import { ENV } from "./src/config/env.js";
+
+export default {
+  schema: "./src/db/schema.js",
+  out: "./src/db/migrations",
+  dialect: "postgresql",
+  dbCredentials: { url: ENV.DATABASE_URL },
+};
+
+// To generate migration
+npx drizzle-kit generate
+
+// migrate table to remote neon
+npx drizzle-kit migrate
+
+```
