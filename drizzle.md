@@ -1,5 +1,11 @@
 # Using Drizzle
 
+- [Drizzle ORM Docs](https://orm.drizzle.team/docs/overview)
+## Other ORMS
+- prisma
+- sequalize
+- mongoose
+
 
 #### Installations
 
@@ -13,6 +19,7 @@ src/db/schema.js
 
 import { pgTable, serial, text, timestamp, integer } from "drizzle-orm/pg-core";
 
+// Creating Favorites Table
 export const favoritesTable = pgTable("favorites", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull(),
@@ -25,3 +32,20 @@ export const favoritesTable = pgTable("favorites", {
 });
 
 ```
+
+#### Using the Schema created above
+
+```js
+src/config/db.js
+
+import { drizzle } from "drizzle-orm/neon-http";
+import { neon } from "@neondatabase/serverless";
+import { ENV } from "./env.js";
+import * as schema from "../db/schema.js";
+
+const sql = neon(ENV.DATABASE_URL);
+export const db = drizzle(sql, { schema });
+
+// The DATABASE_URL you get from neon for postgress its similar to mongodb atlas for mongodb
+```
+
