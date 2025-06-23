@@ -194,4 +194,11 @@ export default job;
 //* 30 3 15 * * - At 3:30 AM, on the 15th of every month
 //* 0 0 1 1 * - At midnight, on January 1st
 //* 0 * * * * - Every hour
+
+
+src/server.js
+
+import job from "./config/cron.js"
+
+if(ENV.NODE_ENV === "production")job.start()
 ```
