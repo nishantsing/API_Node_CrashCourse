@@ -130,7 +130,7 @@ app.get("/api/favorites/:userId", async (req, res) => {
       .select()
       .from(favoritesTable)
       .where(eq(favoritesTable.userId, userId));
-
+    // res.json(userFavorites); // - If no status passed by default its 200.
     res.status(200).json(userFavorites);
   } catch (error) {
     console.log("Error fetching the favorites", error);
