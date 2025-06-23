@@ -6,15 +6,15 @@
 - sequalize
 - mongoose
 
-#### When to use params or body
+### When to use params or body
 
-1. Use Query Params when:
+###### Use Query Params when:
 - You are filtering, sorting, or searching for resources.
 - You are using GET requests.
 - The data is part of the URL.
 - The values are non-sensitive (they will be visible in browser history and logs).
 
-1. Use Request Body when:
+###### Use Request Body when:
 - You are creating or updating a resource (POST, PUT, PATCH).
 - You need to send structured data like JSON, arrays, or nested objects.
 - The data should not be exposed in the URL (e.g., passwords).
