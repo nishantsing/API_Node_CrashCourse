@@ -37,6 +37,82 @@ console.log(process)
 
 - setInterval, setTimeout, fetch they are not part of js, they are part of web API in the browser but also available in node js through global object.
 
+## Latest Node Features
+- instead of using nodemon now you can use --watch flag. node --watch app.js
+- typescript --experimental-transform-types type striping rather than compilation from ts to js
+- Sqlite no package sqlite3 or better required
+  
+```js
+const { DatabaseSync } = require('node:sqlite');
+// Note: only synchronous API (for now) is supported via DatabaseSync. :contentReference[oaicite:3]{index=3}
+
+const db = new DatabaseSync('./mydb.sqlite', {});
+
+// Create table if not exists
+db.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    email TEXT UNIQUE NOT NULL
+  ) STRICT
+`);
+
+// — CREATE
+function createUser(name, email) {
+  const stmt = db.prepare('INSERT INTO users (name, email) VALUES (?, ?)');
+  const info = stmt.run(name, email);
+  console.log(`✅ Created user with id = ${info.lastInsertRowid}`);
+}
+
+// — READ
+function getUsers() {
+  const stmt = db.prepare('SELECT * FROM users ORDER BY id');
+  const rows = stmt.all();
+  console.log("📋 All users:", rows);
+  return rows;
+}
+
+// — UPDATE
+function updateUser(id, newName) {
+  const stmt = db.prepare('UPDATE users SET name = ? WHERE id = ?');
+  const info = stmt.run(newName, id);
+  console.log(`✏️ Updated user id=${id}, changes = ${info.changes}`);
+}
+
+// — DELETE
+function deleteUser(id) {
+  const stmt = db.prepare('DELETE FROM users WHERE id = ?');
+  const info = stmt.run(id);
+  console.log(`🗑️ Deleted user id=${id}, changes = ${info.changes}`);
+}
+
+// Demo sequence:
+createUser('Alice', 'alice@example.com');
+createUser('Bob', 'bob@example.com');
+console.log('After creation:');
+getUsers();
+
+updateUser(1, 'Alice Wonderland');
+console.log('After update:');
+getUsers();
+
+deleteUser(2);
+console.log('After delete:');
+getUsers();
+
+db.close();
+
+```
+- Promise based timer -> if you want to wait before doing some async action after a synchronous action
+  - setTimeout doesn't return promise it returns numerical value of the process so that the process can be cleared using clearTimeout
+  - resolve and reject are callback functions
+```js
+await new Promise((resolve)=> setTimeout(resolve,1000)) instead
+import {setTimeout} from 'node:timers/promises'
+await setTimeout(1000)
+```
+- env file support, dotenv package not required -> node --env-file=.env app.js
+
 ## Designing database ER diagrams(Eraser/ GitMind)
 
 - [Eraser](https://app.eraser.io/workspace/ezOri7BtFqo2b8T5KFc2)
