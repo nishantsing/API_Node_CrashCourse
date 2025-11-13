@@ -42,3 +42,28 @@
    res.end(); // Simply ends the response
     res.end('Some raw data'); // Sends raw data and ends
 ```
+
+## 🚀 How to Deploy Your API for Free (2025 Guide)
+
+If you’ve built a Node.js, Express, or similar backend, here are the best **free deployment options** available in 2025.
+
+---
+
+## 🧭 Summary — Best Free Hosting Options
+
+| Platform              | Type                                    | Free Tier                  | Pros                                  | Limitations                   |
+| --------------------- | --------------------------------------- | -------------------------- | ------------------------------------- | ----------------------------- |
+| **Render**            | Full-stack (Node, Express, Flask, etc.) | ✅ Always Free              | Easy setup, auto HTTPS, GitHub deploy | Spins down after 15 mins idle |
+| **Railway**           | Full-stack                              | ✅ Free tier (500 hours/mo) | Simple UI, instant deploy             | May sleep or stop after quota |
+| **Deno Deploy**       | Edge runtime (JS/TS)                    | ✅ Free                     | Global low-latency edge network       | Limited Node APIs             |
+| **Vercel**            | Frontend + serverless API routes        | ✅ Free                     | Great for Next.js apps                | 10s serverless timeout        |
+| **Netlify Functions** | Serverless                              | ✅ Free                     | Fast for small APIs                   | Limited runtime               |
+| **Glitch / Replit**   | Full-stack sandbox                      | ✅ Free                     | Great for testing                     | Sleeps on inactivity          |
+| **Fly.io**            | Docker-based                            | ✅ Free allowance           | Full control                          | Slightly more setup           |
+
+---
+
+## 🏆 Recommended Option: **Render.com**
+
+Render is the easiest and most reliable free hosting for typical Node.js APIs.
+
